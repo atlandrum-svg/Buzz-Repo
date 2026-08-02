@@ -1,0 +1,187 @@
+[gd_scene format=3 uid="uid://c12qpn34sqtnx"]
+
+[ext_resource type="Texture2D" uid="uid://bh0susjkh0csc" path="res://Room Cleaned 1.png" id="2_x5ca5"]
+[ext_resource type="Texture2D" uid="uid://capo5g34o62i6" path="res://Plant Cutout 2.png" id="5_6lkpy"]
+[ext_resource type="Script" uid="uid://cund6evw6ao8e" path="res://plant_area.gd" id="6_hd4p0"]
+[ext_resource type="Texture2D" uid="uid://ca7aj74krgvjc" path="res://PlantMonster.png" id="6_j4wro"]
+[ext_resource type="PackedScene" uid="uid://dpilh3wmlh162" path="res://Player1.tscn" id="9_60uda"]
+[ext_resource type="PackedScene" uid="uid://bgmyv8vbgr0sq" path="res://Player2.tscn" id="10_n3imp"]
+[ext_resource type="Script" uid="uid://yo5ujpw8dw0r" path="res://turn_manager.gd" id="11_tq4tc"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_3dibl"]
+radius = 284.92386
+
+[sub_resource type="Animation" id="Animation_uxqh3"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_fj6nu"]
+resource_name = "monster"
+length = 1.8
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+"update": 1,
+"values": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+}
+
+[sub_resource type="Animation" id="Animation_dt1fl"]
+resource_name = "normal"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1.03333),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [0, 0]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_gfjqc"]
+_data = {
+&"RESET": SubResource("Animation_uxqh3"),
+&"monster": SubResource("Animation_fj6nu"),
+&"normal": SubResource("Animation_dt1fl")
+}
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_0aaab"]
+size = Vector2(17.25, 469)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_6lkpy"]
+size = Vector2(19, 433)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_4qf0h"]
+size = Vector2(32.25, 467.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hd4p0"]
+size = Vector2(23.5, 448)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_3dibl"]
+size = Vector2(53.75, 85.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_qd1t5"]
+size = Vector2(68, 119)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_qjum0"]
+size = Vector2(54, 96)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_j4wro"]
+size = Vector2(121.75, 166.75)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_60uda"]
+size = Vector2(30, 32)
+
+[node name="Main" type="Node2D" unique_id=287502502]
+
+[node name="Background" type="Sprite2D" parent="." unique_id=503875675]
+z_index = -1
+position = Vector2(-4, -5)
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("2_x5ca5")
+
+[node name="Plant" type="Sprite2D" parent="." unique_id=1207824762]
+z_index = 2
+position = Vector2(168, -249)
+scale = Vector2(0.31759778, 0.3114173)
+texture = ExtResource("6_j4wro")
+offset = Vector2(0, 80)
+hframes = 10
+
+[node name="PlantArea" type="Area2D" parent="Plant" unique_id=1394563669]
+collision_layer = 0
+monitorable = false
+script = ExtResource("6_hd4p0")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Plant/PlantArea" unique_id=1762406847]
+position = Vector2(3.1486282, 256.88998)
+shape = SubResource("CircleShape2D_3dibl")
+
+[node name="Label" type="Label" parent="Plant" unique_id=928484779]
+offset_left = -204.66138
+offset_top = 362.85718
+offset_right = 195.33862
+offset_bottom = 422.85718
+theme_override_font_sizes/font_size = 28
+text = "Press E To Use"
+horizontal_alignment = 1
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Plant" unique_id=95277960]
+libraries/ = SubResource("AnimationLibrary_gfjqc")
+autoplay = &"normal"
+
+[node name="Lamp" type="Sprite2D" parent="." unique_id=1047061987]
+z_index = 1
+position = Vector2(170, 62)
+scale = Vector2(0.448795, 0.399177)
+texture = ExtResource("5_6lkpy")
+
+[node name="RoomBoundaries" type="StaticBody2D" parent="." unique_id=2077535813]
+
+[node name="LeftWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=2110388181]
+position = Vector2(-226.625, 35.5)
+shape = SubResource("RectangleShape2D_0aaab")
+
+[node name="BottomWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=2101951231]
+position = Vector2(0.5, 266.5)
+rotation = -1.5708
+shape = SubResource("RectangleShape2D_6lkpy")
+
+[node name="TopWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=426524894]
+position = Vector2(14, -180)
+rotation = 1.5708
+shape = SubResource("RectangleShape2D_4qf0h")
+
+[node name="RightWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1259907155]
+position = Vector2(219.25, 51)
+shape = SubResource("RectangleShape2D_hd4p0")
+
+[node name="Dresser" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1109785271]
+position = Vector2(170, -132)
+shape = SubResource("RectangleShape2D_3dibl")
+
+[node name="Bed" type="CollisionShape2D" parent="RoomBoundaries" unique_id=375256437]
+position = Vector2(78, -122.5)
+shape = SubResource("RectangleShape2D_qd1t5")
+
+[node name="Table" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1997070407]
+position = Vector2(171, 127)
+shape = SubResource("RectangleShape2D_qjum0")
+
+[node name="Stairs" type="CollisionShape2D" parent="RoomBoundaries" unique_id=756451013]
+position = Vector2(-155.875, 183.375)
+shape = SubResource("RectangleShape2D_j4wro")
+
+[node name="Chest" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1774009037]
+position = Vector2(80, -48)
+shape = SubResource("RectangleShape2D_60uda")
+
+[node name="Player1" parent="." unique_id=1593737180 instance=ExtResource("9_60uda")]
+
+[node name="Player2" parent="." unique_id=2112491496 instance=ExtResource("10_n3imp")]
+
+[node name="TurnManager" type="Node" parent="." unique_id=143145237]
+script = ExtResource("11_tq4tc")
+
+[connection signal="body_entered" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_entered"]
+[connection signal="body_exited" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_exited"]

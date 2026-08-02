@@ -1,0 +1,19 @@
+[gd_scene load_steps=4 format=3 uid="uid://cknxptajc4u7x"]
+
+[ext_resource type="PackedScene" uid="uid://qu24hat1jhmf" path="res://Player.tscn" id="1_ye6mb"]
+[ext_resource type="Texture2D" uid="uid://dev6ndc762rk7" path="res://3qnp024wr54e12.png" id="2_qc345"]
+[ext_resource type="Texture2D" uid="uid://c8l8q3skebobb" path="res://Plant Cutout.png" id="3_jtl27"]
+
+[node name="Main" type="Node2D"]
+
+[node name="Player" parent="." instance=ExtResource("1_ye6mb")]
+
+[node name="Background" type="Sprite2D" parent="."]
+z_index = -1
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("2_qc345")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(178, -180)
+scale = Vector2(0.42663, 0.409483)
+texture = ExtResource("3_jtl27")

@@ -1,0 +1,7 @@
+﻿# Godot 4+
+.godot/
+*.translation
+export_presets.cfg
+.import/
+*.tmp
+plant_frames/
