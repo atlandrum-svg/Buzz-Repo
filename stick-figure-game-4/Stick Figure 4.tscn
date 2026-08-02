@@ -8,30 +8,14 @@
 [ext_resource type="PackedScene" uid="uid://dpilh3wmlh162" path="res://Player1.tscn" id="9_60uda"]
 [ext_resource type="PackedScene" uid="uid://bgmyv8vbgr0sq" path="res://Player2.tscn" id="10_n3imp"]
 [ext_resource type="Script" uid="uid://yo5ujpw8dw0r" path="res://turn_manager.gd" id="11_tq4tc"]
-[ext_resource type="Script" path="res://laptop_area.gd" id="12_laptop"]
-[ext_resource type="Texture2D" path="res://pill_bottle.png" id="13_pill"]
-[ext_resource type="Script" path="res://pill_bottle_area.gd" id="14_pill_area"]
-[ext_resource type="Texture2D" path="res://dresser.png" id="15_dresser"]
-[ext_resource type="Texture2D" path="res://hat_rack.png" id="16_hat"]
-[ext_resource type="Texture2D" path="res://bookshelf.png" id="17_shelf"]
+[ext_resource type="Script" uid="uid://cr1bhnl24athn" path="res://laptop_area.gd" id="12_laptop"]
+[ext_resource type="Texture2D" uid="uid://bfxhxwbf0bmty" path="res://pill_bottle.png" id="13_pill"]
+[ext_resource type="Script" uid="uid://dr4cb5m4qvswv" path="res://pill_bottle_area.gd" id="14_pill_area"]
+[ext_resource type="Texture2D" uid="uid://cfyuvwjq2v1o5" path="res://hat_rack.png" id="16_hat"]
+[ext_resource type="Texture2D" uid="uid://on2friygdp8n" path="res://bookshelf.png" id="17_shelf"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_3dibl"]
 radius = 284.92386
-
-[sub_resource type="CircleShape2D" id="CircleShape2D_laptop"]
-radius = 502.47
-
-[sub_resource type="CircleShape2D" id="CircleShape2D_pill"]
-radius = 452.47
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_dresser_prop"]
-size = Vector2(80, 100)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_hat_rack"]
-size = Vector2(40, 120)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_bookshelf"]
-size = Vector2(80, 120)
 
 [sub_resource type="Animation" id="Animation_uxqh3"]
 length = 0.001
@@ -114,6 +98,18 @@ size = Vector2(121.75, 166.75)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_60uda"]
 size = Vector2(30, 32)
 
+[sub_resource type="CircleShape2D" id="CircleShape2D_laptop"]
+radius = 502.47
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pill"]
+radius = 452.47
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hat_rack"]
+size = Vector2(77.07527, 159.95071)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bookshelf"]
+size = Vector2(80, 120)
+
 [node name="Main" type="Node2D" unique_id=287502502]
 
 [node name="Background" type="Sprite2D" parent="." unique_id=503875675]
@@ -154,7 +150,7 @@ autoplay = &"normal"
 
 [node name="Lamp" type="Sprite2D" parent="." unique_id=1047061987]
 z_index = 1
-position = Vector2(170, 62)
+position = Vector2(168, 63)
 scale = Vector2(0.448795, 0.399177)
 texture = ExtResource("5_6lkpy")
 
@@ -199,8 +195,10 @@ position = Vector2(80, -48)
 shape = SubResource("RectangleShape2D_60uda")
 
 [node name="Player1" parent="." unique_id=1593737180 instance=ExtResource("9_60uda")]
+z_index = 5
 
 [node name="Player2" parent="." unique_id=2112491496 instance=ExtResource("10_n3imp")]
+z_index = 5
 
 [node name="TurnManager" type="Node" parent="." unique_id=143145237]
 script = ExtResource("11_tq4tc")
@@ -211,15 +209,15 @@ position = Vector2(170, 145)
 scale = Vector2(0.18009868, 0.19322915)
 texture = ExtResource("8_3dibl")
 
-[node name="LaptopArea" type="Area2D" parent="LaptopCutOut"]
+[node name="LaptopArea" type="Area2D" parent="LaptopCutOut" unique_id=261960925]
 collision_layer = 0
 monitorable = false
 script = ExtResource("12_laptop")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="LaptopCutOut/LaptopArea"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LaptopCutOut/LaptopArea" unique_id=447546718]
 shape = SubResource("CircleShape2D_laptop")
 
-[node name="Label" type="Label" parent="LaptopCutOut"]
+[node name="Label" type="Label" parent="LaptopCutOut" unique_id=1531411397]
 offset_left = -250.0
 offset_top = -200.0
 offset_right = 250.0
@@ -228,21 +226,23 @@ theme_override_font_sizes/font_size = 48
 text = "Press E To Use"
 horizontal_alignment = 1
 
-[node name="PillBottle" type="Sprite2D" parent="."]
-z_index = 2
-position = Vector2(0, 40)
-scale = Vector2(0.2, 0.2)
+[node name="PillBottle" type="Sprite2D" parent="." unique_id=1661104774]
+z_index = 3
+position = Vector2(-6.0000153, -163)
+scale = Vector2(0.1351563, 0.1390626)
 texture = ExtResource("13_pill")
 
-[node name="PillBottleArea" type="Area2D" parent="PillBottle"]
+[node name="PillBottleArea" type="Area2D" parent="PillBottle" unique_id=2015547898]
+position = Vector2(-170.17336, -992.35876)
 collision_layer = 0
 monitorable = false
 script = ExtResource("14_pill_area")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="PillBottle/PillBottleArea"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PillBottle/PillBottleArea" unique_id=898735073]
+position = Vector2(162.7746, 1021.1229)
 shape = SubResource("CircleShape2D_pill")
 
-[node name="Label" type="Label" parent="PillBottle"]
+[node name="Label" type="Label" parent="PillBottle" unique_id=1433908048]
 offset_left = -250.0
 offset_top = -200.0
 offset_right = 250.0
@@ -251,37 +251,28 @@ theme_override_font_sizes/font_size = 48
 text = "Press E To Use"
 horizontal_alignment = 1
 
-[node name="DresserProp" type="Sprite2D" parent="."]
+[node name="HatRack" type="Sprite2D" parent="." unique_id=791289123]
 z_index = 2
-position = Vector2(-50, 40)
-scale = Vector2(0.2, 0.2)
-texture = ExtResource("15_dresser")
-
-[node name="Body" type="StaticBody2D" parent="DresserProp"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="DresserProp/Body"]
-shape = SubResource("RectangleShape2D_dresser_prop")
-
-[node name="HatRack" type="Sprite2D" parent="."]
-z_index = 2
-position = Vector2(0, 40)
-scale = Vector2(0.2, 0.2)
+position = Vector2(-64.000015, 213)
+scale = Vector2(0.36328128, 0.34218746)
 texture = ExtResource("16_hat")
 
-[node name="Body" type="StaticBody2D" parent="HatRack"]
+[node name="Body" type="StaticBody2D" parent="HatRack" unique_id=543746789]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="HatRack/Body"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HatRack/Body" unique_id=1177255422]
+position = Vector2(-2.7526855, 8.767128)
+scale = Vector2(0.99999994, 0.9999999)
 shape = SubResource("RectangleShape2D_hat_rack")
 
-[node name="Bookshelf" type="Sprite2D" parent="."]
+[node name="Bookshelf" type="Sprite2D" parent="." unique_id=1264882725]
 z_index = 2
-position = Vector2(50, 40)
-scale = Vector2(0.2, 0.2)
+position = Vector2(5, -121)
+scale = Vector2(0.40351564, 0.38398436)
 texture = ExtResource("17_shelf")
 
-[node name="Body" type="StaticBody2D" parent="Bookshelf"]
+[node name="Body" type="StaticBody2D" parent="Bookshelf" unique_id=1241991946]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Bookshelf/Body"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Bookshelf/Body" unique_id=1468056463]
 shape = SubResource("RectangleShape2D_bookshelf")
 
 [connection signal="body_entered" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_entered"]
