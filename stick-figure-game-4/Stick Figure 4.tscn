@@ -11,6 +11,9 @@
 [ext_resource type="Script" path="res://laptop_area.gd" id="12_laptop"]
 [ext_resource type="Texture2D" path="res://pill_bottle.png" id="13_pill"]
 [ext_resource type="Script" path="res://pill_bottle_area.gd" id="14_pill_area"]
+[ext_resource type="Texture2D" path="res://dresser.png" id="15_dresser"]
+[ext_resource type="Texture2D" path="res://hat_rack.png" id="16_hat"]
+[ext_resource type="Texture2D" path="res://bookshelf.png" id="17_shelf"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_3dibl"]
 radius = 284.92386
@@ -20,6 +23,15 @@ radius = 502.47
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_pill"]
 radius = 452.47
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dresser_prop"]
+size = Vector2(80, 100)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hat_rack"]
+size = Vector2(40, 120)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bookshelf"]
+size = Vector2(80, 120)
 
 [sub_resource type="Animation" id="Animation_uxqh3"]
 length = 0.001
@@ -238,6 +250,39 @@ offset_bottom = -120.0
 theme_override_font_sizes/font_size = 48
 text = "Press E To Use"
 horizontal_alignment = 1
+
+[node name="DresserProp" type="Sprite2D" parent="."]
+z_index = 2
+position = Vector2(-50, 40)
+scale = Vector2(0.2, 0.2)
+texture = ExtResource("15_dresser")
+
+[node name="Body" type="StaticBody2D" parent="DresserProp"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DresserProp/Body"]
+shape = SubResource("RectangleShape2D_dresser_prop")
+
+[node name="HatRack" type="Sprite2D" parent="."]
+z_index = 2
+position = Vector2(0, 40)
+scale = Vector2(0.2, 0.2)
+texture = ExtResource("16_hat")
+
+[node name="Body" type="StaticBody2D" parent="HatRack"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HatRack/Body"]
+shape = SubResource("RectangleShape2D_hat_rack")
+
+[node name="Bookshelf" type="Sprite2D" parent="."]
+z_index = 2
+position = Vector2(50, 40)
+scale = Vector2(0.2, 0.2)
+texture = ExtResource("17_shelf")
+
+[node name="Body" type="StaticBody2D" parent="Bookshelf"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Bookshelf/Body"]
+shape = SubResource("RectangleShape2D_bookshelf")
 
 [connection signal="body_entered" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_entered"]
 [connection signal="body_exited" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_exited"]
