@@ -5,19 +5,41 @@ extends Area2D
 @onready var player2_body = $/root/Main/Player2/Player2Body
 @onready var turn_manager = $/root/Main/TurnManager
 @onready var animation_player = $"../AnimationPlayer"
+@onready var plant_sprite: Sprite2D = $".."
+
+const SMOKE_SHEET = preload("res://plnt03-Sheet.png")
+const SMOKE_FRAMES := 16
+const SMOKE_FPS := 10.0
+
 var player_inside = null
 var is_booby_trapped = false
+var smoking := false
+var _smoke_accum := 0.0
+var _orig_texture: Texture2D
+var _orig_hframes := 10
+var _orig_scale := Vector2.ONE
+var _orig_offset := Vector2.ZERO
+
 
 func _ready():
 	label.visible = false
+	_orig_texture = plant_sprite.texture
+	_orig_hframes = plant_sprite.hframes
+	_orig_scale = plant_sprite.scale
+	_orig_offset = plant_sprite.offset
 	if animation_player:
 		animation_player.play("normal")
-	else:
-		print("AnimationPlayer not found!")
-	print("Label node: ", label)
-	print("Player1Body node: ", player1_body)
-	print("Player2Body node: ", player2_body)
-	print("TurnManager node: ", turn_manager)
+
+
+func _process(delta: float) -> void:
+	if not smoking:
+		return
+	_smoke_accum += delta
+	var step := 1.0 / SMOKE_FPS
+	while _smoke_accum >= step:
+		_smoke_accum -= step
+		plant_sprite.frame = (plant_sprite.frame + 1) % SMOKE_FRAMES
+
 
 func _on_body_entered(body):
 	if body == player1_body or body == player2_body:
@@ -29,10 +51,12 @@ func _on_body_entered(body):
 			label.text = "Press I to inspect or E to use"
 			label.visible = true
 
+
 func _on_body_exited(body):
 	if body == player_inside:
 		player_inside = null
 		label.visible = false
+
 
 func _input(event):
 	if player_inside and event is InputEventKey and event.pressed:
@@ -40,7 +64,6 @@ func _input(event):
 			is_booby_trapped = true
 			label.visible = false
 			turn_manager.switch_turn()
-			print("Booby trap set!")
 		elif player_inside == player2_body and turn_manager.current_turn == "Player2":
 			if event.keycode == KEY_I:
 				if is_booby_trapped:
@@ -55,17 +78,75 @@ func _input(event):
 				turn_manager.switch_turn()
 			elif event.keycode == KEY_E:
 				if is_booby_trapped:
-					label.text = "Trap triggered!"
-					if animation_player:
-						animation_player.play("monster")
-						await animation_player.animation_finished
-					else:
-						print("AnimationPlayer not found for monster!")
-					await get_tree().create_timer(1.0).timeout
 					label.visible = false
-					print("Monster event triggered!")
+					_start_smoke()
+					await _show_censor(2.0)
+					# smoke keeps looping for rest of round
 				else:
 					label.text = "Used plant, nothing happened."
 					await get_tree().create_timer(1.0).timeout
 					label.visible = false
 				turn_manager.switch_turn()
+
+
+func _start_smoke() -> void:
+	if animation_player:
+		animation_player.stop()
+	# Match prior plant on-screen size (old frame ~358px wide vs 66px)
+	var scale_mul := 358.0 / 66.0
+	plant_sprite.texture = SMOKE_SHEET
+	plant_sprite.hframes = SMOKE_FRAMES
+	plant_sprite.vframes = 1
+	plant_sprite.frame = 0
+	plant_sprite.offset = Vector2.ZERO
+	plant_sprite.scale = _orig_scale * scale_mul
+	smoking = true
+	_smoke_accum = 0.0
+
+
+func _show_censor(duration: float) -> void:
+	var plant_pos := plant_sprite.global_position
+	var player_pos := player_inside.global_position if player_inside else plant_pos
+	var center := (plant_pos + player_pos) * 0.5
+	var pad := Vector2(140, 160)
+	var half := Vector2(
+		maxf(absf(plant_pos.x - player_pos.x) * 0.5 + pad.x, 100.0),
+		maxf(absf(plant_pos.y - player_pos.y) * 0.5 + pad.y, 110.0)
+	)
+
+	var root := Node2D.new()
+	root.z_index = 100
+	root.global_position = center
+	get_tree().current_scene.add_child(root)
+
+	var box := Polygon2D.new()
+	box.color = Color.BLACK
+	box.polygon = PackedVector2Array([
+		Vector2(-half.x, -half.y),
+		Vector2(half.x, -half.y),
+		Vector2(half.x, half.y),
+		Vector2(-half.x, half.y),
+	])
+	root.add_child(box)
+
+	var lab := Label.new()
+	lab.text = "CENSORED"
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	if ResourceLoader.exists("res://PressStart2P-Regular.ttf"):
+		lab.add_theme_font_override("font", load("res://PressStart2P-Regular.ttf"))
+	lab.add_theme_font_size_override("font_size", 22)
+	lab.add_theme_color_override("font_color", Color.WHITE)
+	lab.rotation = deg_to_rad(-35.0)
+	lab.size = Vector2(half.x * 1.6, 40)
+	lab.position = Vector2(-lab.size.x * 0.5, -20)
+	root.add_child(lab)
+
+	var t := 0.0
+	var base := root.position
+	while t < duration:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		root.position = base + Vector2(randf_range(-3.5, 3.5), randf_range(-3.5, 3.5))
+
+	root.queue_free()
