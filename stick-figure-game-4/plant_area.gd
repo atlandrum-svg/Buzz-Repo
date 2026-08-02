@@ -101,7 +101,8 @@ func _ensure_smoke_animation() -> void:
 	anim.loop_mode = Animation.LOOP_LINEAR
 	var track := anim.add_track(Animation.TYPE_VALUE)
 	anim.track_set_path(track, NodePath(".:frame"))
-	anim.value_track_set_update_mode(track, Animation.UPDATE_MODE_DISCRETE)
+	# Discrete frame steps — same as tscn monster track update:1
+	anim.value_track_set_update_mode(track, 1)
 	var step := SMOKE_LENGTH / float(SMOKE_HFRAMES)
 	for i in SMOKE_HFRAMES:
 		anim.track_insert_key(track, i * step, i)
