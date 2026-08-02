@@ -1,34 +1,37 @@
 extends Area2D
 
+## Plant trap interaction — smoke uses the SAME pipeline as the original monster anim:
+## Sprite2D + hframes + AnimationPlayer keys on `.:frame` (see Stick Figure 4.tscn "monster").
+
 @onready var label = $/root/Main/Plant/Label
 @onready var player1_body = $/root/Main/Player1/Player1Body
 @onready var player2_body = $/root/Main/Player2/Player2Body
 @onready var turn_manager = $/root/Main/TurnManager
-@onready var animation_player = $"../AnimationPlayer"
+@onready var animation_player: AnimationPlayer = $"../AnimationPlayer"
 @onready var plant_sprite: Sprite2D = $".."
 
-const SMOKE_SHEET = preload("res://plnt03-Sheet.png")
-const SMOKE_FRAMES := 16
-const SMOKE_FPS := 10.0
-const SMOKE_FW := 66
-const SMOKE_FH := 64
+# Pre-padded sheet: 16 cells of 358x508 (same cell size as PlantMonster.png)
+const SMOKE_SHEET = preload("res://plnt03_monster_frames.png")
+const SMOKE_HFRAMES := 16
+const SMOKE_LENGTH := 1.6 # 16 * 0.1s, same discrete style as monster
 
 var player_inside = null
 var is_booby_trapped = false
 var smoking := false
-var _smoke_anim: AnimatedSprite2D
+
 var _orig_texture: Texture2D
+var _orig_hframes := 10
 var _orig_scale := Vector2.ONE
 var _orig_offset := Vector2.ZERO
-var _orig_hframes := 10
 
 
 func _ready():
 	label.visible = false
 	_orig_texture = plant_sprite.texture
+	_orig_hframes = plant_sprite.hframes
 	_orig_scale = plant_sprite.scale
 	_orig_offset = plant_sprite.offset
-	_orig_hframes = plant_sprite.hframes
+	_ensure_smoke_animation()
 	if animation_player:
 		animation_player.play("normal")
 
@@ -80,52 +83,56 @@ func _input(event):
 				turn_manager.switch_turn()
 
 
+func _ensure_smoke_animation() -> void:
+	if animation_player == null:
+		return
+	# Library name "" is the default library in this scene
+	var lib: AnimationLibrary = animation_player.get_animation_library("")
+	if lib == null:
+		lib = AnimationLibrary.new()
+		animation_player.add_animation_library("", lib)
+	if lib.has_animation("smoke"):
+		return
+
+	# Clone the structure of "monster": discrete value track on Plant.frame
+	var anim := Animation.new()
+	anim.resource_name = "smoke"
+	anim.length = SMOKE_LENGTH
+	anim.loop_mode = Animation.LOOP_LINEAR
+	var track := anim.add_track(Animation.TYPE_VALUE)
+	anim.track_set_path(track, NodePath(".:frame"))
+	anim.value_track_set_update_mode(track, Animation.UPDATE_MODE_DISCRETE)
+	var step := SMOKE_LENGTH / float(SMOKE_HFRAMES)
+	for i in SMOKE_HFRAMES:
+		anim.track_insert_key(track, i * step, i)
+	lib.add_animation("smoke", anim)
+
+
 func _start_smoke() -> void:
 	if smoking:
 		return
 	smoking = true
+	_ensure_smoke_animation()
 
-	# Kill the old monster AnimationPlayer completely so it cannot drive frames.
-	if animation_player:
-		animation_player.stop()
-		animation_player.active = false
-		animation_player.process_mode = Node.PROCESS_MODE_DISABLED
-
-	# Hide the multi-frame Sprite2D (this is what was showing the full strip).
-	plant_sprite.texture = null
-	plant_sprite.hframes = 1
+	# Exact same Sprite2D setup as idle/monster — only swap sheet + hframes.
+	plant_sprite.region_enabled = false
+	plant_sprite.texture = SMOKE_SHEET
+	plant_sprite.hframes = SMOKE_HFRAMES
 	plant_sprite.vframes = 1
 	plant_sprite.frame = 0
-	plant_sprite.region_enabled = false
-	plant_sprite.offset = Vector2.ZERO
+	plant_sprite.scale = _orig_scale
+	plant_sprite.offset = _orig_offset
+	plant_sprite.centered = true
 
-	# One cell per AtlasTexture → AnimatedSprite2D.play (same idea as working plant anim).
-	if _smoke_anim == null:
-		_smoke_anim = AnimatedSprite2D.new()
-		_smoke_anim.name = "SmokeAnim"
-		_smoke_anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		_smoke_anim.centered = true
-		plant_sprite.add_child(_smoke_anim)
+	# Remove any leftover SmokeAnim child from prior attempts
+	var old := plant_sprite.get_node_or_null("SmokeAnim")
+	if old:
+		old.queue_free()
 
-		var frames := SpriteFrames.new()
-		frames.add_animation("smoke")
-		frames.set_animation_loop("smoke", true)
-		frames.set_animation_speed("smoke", SMOKE_FPS)
-		for i in SMOKE_FRAMES:
-			var at := AtlasTexture.new()
-			at.atlas = SMOKE_SHEET
-			at.region = Rect2(i * SMOKE_FW, 0, SMOKE_FW, SMOKE_FH)
-			at.filter_clip = true
-			frames.add_frame("smoke", at)
-		_smoke_anim.sprite_frames = frames
-
-	# Parent Plant already scaled for huge monster frames; counter-scale child so one cell is room-sized.
-	# Display target ~ old monster width on screen: 358 * 0.32 ≈ 114px; cell is 66px → scale ≈ 1.73 on root.
-	# Root scale stays _orig_scale; child scale compensates sheet cell vs old frame.
-	var cell_scale := (358.0 / float(SMOKE_FW))
-	_smoke_anim.scale = Vector2(cell_scale, cell_scale)
-	_smoke_anim.visible = true
-	_smoke_anim.play("smoke")
+	if animation_player:
+		animation_player.process_mode = Node.PROCESS_MODE_INHERIT
+		animation_player.active = true
+		animation_player.play("smoke")
 
 
 func _show_censor(duration: float) -> void:
