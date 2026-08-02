@@ -15,18 +15,12 @@ var player_inside = null
 var is_booby_trapped = false
 var smoking := false
 var _smoke_accum := 0.0
-var _orig_texture: Texture2D
-var _orig_hframes := 10
 var _orig_scale := Vector2.ONE
-var _orig_offset := Vector2.ZERO
 
 
 func _ready():
 	label.visible = false
-	_orig_texture = plant_sprite.texture
-	_orig_hframes = plant_sprite.hframes
 	_orig_scale = plant_sprite.scale
-	_orig_offset = plant_sprite.offset
 	if animation_player:
 		animation_player.play("normal")
 
@@ -81,7 +75,6 @@ func _input(event):
 					label.visible = false
 					_start_smoke()
 					await _show_censor(2.0)
-					# smoke keeps looping for rest of round
 				else:
 					label.text = "Used plant, nothing happened."
 					await get_tree().create_timer(1.0).timeout
@@ -105,9 +98,11 @@ func _start_smoke() -> void:
 
 
 func _show_censor(duration: float) -> void:
-	var plant_pos := plant_sprite.global_position
-	var player_pos := player_inside.global_position if player_inside else plant_pos
-	var center := (plant_pos + player_pos) * 0.5
+	var plant_pos: Vector2 = plant_sprite.global_position
+	var player_pos: Vector2 = plant_pos
+	if player_inside != null:
+		player_pos = player_inside.global_position
+	var center: Vector2 = (plant_pos + player_pos) * 0.5
 	var pad := Vector2(140, 160)
 	var half := Vector2(
 		maxf(absf(plant_pos.x - player_pos.x) * 0.5 + pad.x, 100.0),
@@ -143,7 +138,7 @@ func _show_censor(duration: float) -> void:
 	root.add_child(lab)
 
 	var t := 0.0
-	var base := root.position
+	var base: Vector2 = root.position
 	while t < duration:
 		await get_tree().process_frame
 		t += get_process_delta_time()
