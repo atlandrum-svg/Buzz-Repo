@@ -7,38 +7,35 @@ extends Area2D
 @onready var animation_player = $"../AnimationPlayer"
 @onready var plant_sprite: Sprite2D = $".."
 
-const SMOKE_COUNT := 16
-const SMOKE_FPS := 10.0
+const GIF_FRAMES := 22
+const GIF_FPS := 12.0
 
 var player_inside = null
 var is_booby_trapped = false
 var smoking := false
-var _smoke_textures: Array = []
-var _smoke_i := 0
-var _smoke_t := 0.0
-var _orig_scale := Vector2.ONE
-var _orig_offset := Vector2.ZERO
+var _gif_tex: Array = []
+var _gif_i := 0
+var _gif_t := 0.0
+var _smoke_sprite: Sprite2D # separate node — never the multi-frame Plant sheet
 
 
 func _ready():
 	label.visible = false
-	_orig_scale = plant_sprite.scale
-	_orig_offset = plant_sprite.offset
-	for i in SMOKE_COUNT:
-		_smoke_textures.append(load("res://smoke_frames/smoke_%02d.png" % i))
+	for i in GIF_FRAMES:
+		_gif_tex.append(load("res://gif_smoke/g_%02d.png" % i))
 	if animation_player:
 		animation_player.play("normal")
 
 
 func _process(delta: float) -> void:
-	if not smoking:
+	if not smoking or _smoke_sprite == null:
 		return
-	_smoke_t += delta
-	var step := 1.0 / SMOKE_FPS
-	while _smoke_t >= step:
-		_smoke_t -= step
-		_smoke_i = (_smoke_i + 1) % SMOKE_COUNT
-		plant_sprite.texture = _smoke_textures[_smoke_i]
+	_gif_t += delta
+	var step := 1.0 / GIF_FPS
+	while _gif_t >= step:
+		_gif_t -= step
+		_gif_i = (_gif_i + 1) % GIF_FRAMES
+		_smoke_sprite.texture = _gif_tex[_gif_i]
 
 
 func _on_body_entered(body):
@@ -89,28 +86,34 @@ func _input(event):
 
 
 func _start_smoke() -> void:
-	# Stop monster AnimationPlayer — it only keys frame on a multi-frame sheet.
+	if smoking:
+		return
+	smoking = true
+
+	# Freeze/hide original Plant multi-frame sprite + its AnimationPlayer entirely.
 	if animation_player:
 		animation_player.stop()
 		animation_player.active = false
+	plant_sprite.visible = false
 
-	# One PNG = one plant. No hframes/atlas/strip possible.
-	var old = plant_sprite.get_node_or_null("SmokeAnim")
-	if old:
-		old.queue_free()
+	# Dedicated single-frame sprite (GIF frames are full 480x640 plant poses).
+	var main = plant_sprite.get_parent()
+	_smoke_sprite = main.get_node_or_null("PlantSmokeGIF") as Sprite2D
+	if _smoke_sprite == null:
+		_smoke_sprite = Sprite2D.new()
+		_smoke_sprite.name = "PlantSmokeGIF"
+		_smoke_sprite.z_index = plant_sprite.z_index
+		_smoke_sprite.centered = true
+		_smoke_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		main.add_child(_smoke_sprite)
 
-	plant_sprite.region_enabled = false
-	plant_sprite.hframes = 1
-	plant_sprite.vframes = 1
-	plant_sprite.frame = 0
-	plant_sprite.offset = Vector2.ZERO
-	plant_sprite.centered = true
-	# 330x320 frames; ~same on-screen size as monster at scale ~0.35
-	plant_sprite.scale = Vector2(0.4, 0.4)
-	_smoke_i = 0
-	_smoke_t = 0.0
-	plant_sprite.texture = _smoke_textures[0]
-	smoking = true
+	_smoke_sprite.global_position = plant_sprite.global_position
+	# ~same on-screen height as old plant (508 * 0.31 ≈ 158); GIF frame h=640
+	_smoke_sprite.scale = Vector2(0.28, 0.28)
+	_smoke_sprite.visible = true
+	_gif_i = 0
+	_gif_t = 0.0
+	_smoke_sprite.texture = _gif_tex[0]
 
 
 func _show_censor(duration: float) -> void:
