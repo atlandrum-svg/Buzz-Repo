@@ -9,12 +9,17 @@
 [ext_resource type="PackedScene" uid="uid://bgmyv8vbgr0sq" path="res://Player2.tscn" id="10_n3imp"]
 [ext_resource type="Script" uid="uid://yo5ujpw8dw0r" path="res://turn_manager.gd" id="11_tq4tc"]
 [ext_resource type="Script" path="res://laptop_area.gd" id="12_laptop"]
+[ext_resource type="Texture2D" path="res://pill_bottle.png" id="13_pill"]
+[ext_resource type="Script" path="res://pill_bottle_area.gd" id="14_pill_area"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_3dibl"]
 radius = 284.92386
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_laptop"]
 radius = 502.47
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pill"]
+radius = 452.47
 
 [sub_resource type="Animation" id="Animation_uxqh3"]
 length = 0.001
@@ -211,7 +216,32 @@ theme_override_font_sizes/font_size = 48
 text = "Press E To Use"
 horizontal_alignment = 1
 
+[node name="PillBottle" type="Sprite2D" parent="."]
+z_index = 2
+position = Vector2(0, 40)
+scale = Vector2(0.2, 0.2)
+texture = ExtResource("13_pill")
+
+[node name="PillBottleArea" type="Area2D" parent="PillBottle"]
+collision_layer = 0
+monitorable = false
+script = ExtResource("14_pill_area")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PillBottle/PillBottleArea"]
+shape = SubResource("CircleShape2D_pill")
+
+[node name="Label" type="Label" parent="PillBottle"]
+offset_left = -250.0
+offset_top = -200.0
+offset_right = 250.0
+offset_bottom = -120.0
+theme_override_font_sizes/font_size = 48
+text = "Press E To Use"
+horizontal_alignment = 1
+
 [connection signal="body_entered" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_entered"]
 [connection signal="body_exited" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_exited"]
 [connection signal="body_entered" from="LaptopCutOut/LaptopArea" to="LaptopCutOut/LaptopArea" method="_on_body_entered"]
 [connection signal="body_exited" from="LaptopCutOut/LaptopArea" to="LaptopCutOut/LaptopArea" method="_on_body_exited"]
+[connection signal="body_entered" from="PillBottle/PillBottleArea" to="PillBottle/PillBottleArea" method="_on_body_entered"]
+[connection signal="body_exited" from="PillBottle/PillBottleArea" to="PillBottle/PillBottleArea" method="_on_body_exited"]
