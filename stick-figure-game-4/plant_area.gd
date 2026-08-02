@@ -10,11 +10,14 @@ extends Area2D
 const SMOKE_SHEET = preload("res://plnt03-Sheet.png")
 const SMOKE_FRAMES := 16
 const SMOKE_FPS := 10.0
+const SMOKE_FW := 66 # 1056 / 16
+const SMOKE_FH := 64
 
 var player_inside = null
 var is_booby_trapped = false
 var smoking := false
 var _smoke_accum := 0.0
+var _smoke_frame := 0
 var _orig_scale := Vector2.ONE
 
 
@@ -32,7 +35,8 @@ func _process(delta: float) -> void:
 	var step := 1.0 / SMOKE_FPS
 	while _smoke_accum >= step:
 		_smoke_accum -= step
-		plant_sprite.frame = (plant_sprite.frame + 1) % SMOKE_FRAMES
+		_smoke_frame = (_smoke_frame + 1) % SMOKE_FRAMES
+		_apply_smoke_frame()
 
 
 func _on_body_entered(body):
@@ -83,18 +87,29 @@ func _input(event):
 
 
 func _start_smoke() -> void:
+	# Stop monster/normal frame tracks so they can't fight the smoke sheet
 	if animation_player:
 		animation_player.stop()
+		animation_player.active = false
 	# Match prior plant on-screen size (old frame ~358px wide vs 66px)
-	var scale_mul := 358.0 / 66.0
+	var scale_mul := 358.0 / float(SMOKE_FW)
 	plant_sprite.texture = SMOKE_SHEET
-	plant_sprite.hframes = SMOKE_FRAMES
+	# Force single-frame + region (avoids whole-sheet "side scroll" if hframes stuck at 10)
+	plant_sprite.hframes = 1
 	plant_sprite.vframes = 1
 	plant_sprite.frame = 0
+	plant_sprite.region_enabled = true
+	plant_sprite.centered = true
 	plant_sprite.offset = Vector2.ZERO
 	plant_sprite.scale = _orig_scale * scale_mul
-	smoking = true
+	_smoke_frame = 0
 	_smoke_accum = 0.0
+	_apply_smoke_frame()
+	smoking = true
+
+
+func _apply_smoke_frame() -> void:
+	plant_sprite.region_rect = Rect2(_smoke_frame * SMOKE_FW, 0, SMOKE_FW, SMOKE_FH)
 
 
 func _show_censor(duration: float) -> void:
