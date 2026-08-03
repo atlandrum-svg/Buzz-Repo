@@ -81,6 +81,11 @@ var _pills_dialog_open: bool = false
 ## Inventory entry waiting on dialog confirm (Take).
 var _pending_inv_entry: Dictionary = {}
 
+## 3-2-1 handoff overlay between players (Feedback P2).
+var _transition_layer: CanvasLayer
+var _transition_label: Label
+var _is_transitioning := false
+
 
 func _ready():
 	player1.set_active(true)
@@ -88,9 +93,27 @@ func _ready():
 	set_process_input(true)
 	set_process_unhandled_input(true)
 	call_deferred("_build_hud")
+	call_deferred("_build_transition_ui")
+
+
+## True while the 3-2-1 handoff overlay is showing. Props should no-op trap/use.
+func is_handoff_active() -> bool:
+	return _is_transitioning
 
 
 func switch_turn():
+	if _is_transitioning:
+		return
+	var incoming_player := "Player 2" if current_turn == "Player1" else "Player 1"
+	_is_transitioning = true
+	# Freeze both players during countdown; keep current player visible.
+	if player1:
+		player1.set_physics_process(false)
+	if player2:
+		player2.set_physics_process(false)
+	await _play_handoff_countdown(incoming_player)
+	_is_transitioning = false
+
 	if current_turn == "Player1":
 		current_turn = "Player2"
 		player1.set_active(false)
@@ -106,8 +129,66 @@ func switch_turn():
 	_update_held_items_visibility()
 
 
+func _play_handoff_countdown(incoming_player_label: String) -> void:
+	if _transition_layer == null:
+		_build_transition_ui()
+	if _transition_layer == null or _transition_label == null:
+		return
+	var counted := ""
+	_transition_layer.visible = true
+	for count in [3, 2, 1]:
+		counted += "%d... " % count
+		_transition_label.text = "Switching to %s in %s" % [incoming_player_label, counted.strip_edges()]
+		await get_tree().create_timer(1.0).timeout
+	_transition_layer.visible = false
+
+
+func _build_transition_ui() -> void:
+	if _transition_layer != null:
+		return
+	var scene = get_tree().current_scene
+	if scene == null:
+		scene = get_parent()
+	if scene == null:
+		return
+	_transition_layer = CanvasLayer.new()
+	_transition_layer.name = "HandoffTransition"
+	_transition_layer.layer = 30
+	_transition_layer.visible = false
+	scene.add_child(_transition_layer)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_transition_layer.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_transition_layer.add_child(center)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = HUD_BG
+	style.border_color = HUD_BORDER
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(14)
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+
+	_transition_label = Label.new()
+	if ResourceLoader.exists("res://PressStart2P-Regular.ttf"):
+		_transition_label.add_theme_font_override("font", load("res://PressStart2P-Regular.ttf"))
+	_transition_label.add_theme_font_size_override("font_size", HUD_FONT_SIZE)
+	_transition_label.add_theme_color_override("font_color", HUD_TEXT)
+	_transition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	panel.add_child(_transition_label)
+
+
 func consume_trap() -> bool:
-	if current_turn != "Player1" or traps_left <= 0:
+	if _is_transitioning or current_turn != "Player1" or traps_left <= 0:
 		return false
 	traps_left -= 1
 	_update_hud()
@@ -117,7 +198,7 @@ func consume_trap() -> bool:
 
 
 func consume_p2_use() -> bool:
-	if current_turn != "Player2" or p2_items_used >= P2_USES_MAX:
+	if _is_transitioning or current_turn != "Player2" or p2_items_used >= P2_USES_MAX:
 		return false
 	p2_items_used += 1
 	_update_hud()
