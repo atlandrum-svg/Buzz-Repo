@@ -74,12 +74,17 @@ func _run() -> void:
 		quit(FAIL)
 		return
 
-	# Buff / debuff icon API smoke (pill bottle + placeholder demon)
-	var pill_tex: Texture2D = null
-	if ResourceLoader.exists("res://pill_bottle.png"):
-		pill_tex = load("res://pill_bottle.png")
-	tm.add_status_effect("adhd_boost", "buff", pill_tex, "ADHD")
-	tm.add_status_effect("vishnu_demon", "debuff", null, "Vishnu")
+	# Buff / debuff icon API smoke — uses real artwork (no letter fallbacks)
+	if not ResourceLoader.exists("res://vishnu_demon_possess.png"):
+		push_error("[CAPTURE] FAIL: missing res://vishnu_demon_possess.png artwork")
+		quit(FAIL)
+		return
+	if not ResourceLoader.exists("res://pill_bottle.png"):
+		push_error("[CAPTURE] FAIL: missing res://pill_bottle.png artwork")
+		quit(FAIL)
+		return
+	tm.add_status_effect("adhd_boost", "buff")  # auto pill art
+	tm.add_status_effect("vishnu_demon", "debuff")  # auto vishnu art
 	await process_frame
 	if not tm.has_status_effect("adhd_boost") or not tm.has_status_effect("vishnu_demon"):
 		push_error("[CAPTURE] FAIL: add_status_effect did not stick")
@@ -89,7 +94,12 @@ func _run() -> void:
 		push_error("[CAPTURE] FAIL: expected 2 active effects")
 		quit(FAIL)
 		return
-	print("[CAPTURE] effects=", tm._effects.keys())
+	var vishnu_tex: Texture2D = tm._effects["vishnu_demon"].get("texture") as Texture2D
+	if vishnu_tex == null:
+		push_error("[CAPTURE] FAIL: vishnu debuff must use artwork, not letter fallback")
+		quit(FAIL)
+		return
+	print("[CAPTURE] effects=", tm._effects.keys(), " vishnu_tex=", vishnu_tex.resource_path)
 
 	# Full viewport screenshot (640x360)
 	var vp := root.get_viewport()

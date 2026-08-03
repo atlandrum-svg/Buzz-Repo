@@ -134,10 +134,18 @@ func set_stats(agi: int, cha: int, intel: int) -> void:
 
 ## --- Buff / Debuff status icons (sidebar under attributes) ---
 
+const TEX_PILL_BOTTLE := "res://pill_bottle.png"
+const TEX_VISHNU_DEMON := "res://vishnu_demon_possess.png"
+
 ## kind: "buff" or "debuff". Replaces any existing effect with the same id.
+## If texture is null, known ids (vishnu_demon, adhd_boost, drowsy) load their artwork automatically.
 func add_status_effect(id: String, kind: String, texture: Texture2D = null, display_name: String = "") -> void:
 	if id.is_empty():
 		return
+	if texture == null:
+		texture = _default_effect_texture(id)
+	if display_name.is_empty():
+		display_name = _default_effect_name(id)
 	remove_status_effect(id)
 	var is_buff := kind.to_lower() != "debuff"
 	var row: HBoxContainer = _buffs_row if is_buff else _debuffs_row
@@ -152,6 +160,32 @@ func add_status_effect(id: String, kind: String, texture: Texture2D = null, disp
 		"slot": slot,
 	}
 	_refresh_effect_empty_labels()
+
+
+func _default_effect_texture(id: String) -> Texture2D:
+	var path := ""
+	match id:
+		EFFECT_VISHNU, "vishnu", "vishnu_demon":
+			path = TEX_VISHNU_DEMON
+		EFFECT_ADHD, EFFECT_DROWSY, ITEM_PILLS, "pill":
+			path = TEX_PILL_BOTTLE
+		_:
+			return null
+	if path.is_empty() or not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
+
+func _default_effect_name(id: String) -> String:
+	match id:
+		EFFECT_VISHNU, "vishnu", "vishnu_demon":
+			return "Vishnu"
+		EFFECT_ADHD:
+			return "ADHD"
+		EFFECT_DROWSY:
+			return "Drowsy"
+		_:
+			return id
 
 
 func remove_status_effect(id: String) -> void:
