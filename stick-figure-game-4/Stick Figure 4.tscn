@@ -13,6 +13,8 @@
 [ext_resource type="Script" uid="uid://dr4cb5m4qvswv" path="res://pill_bottle_area.gd" id="14_pill_area"]
 [ext_resource type="Texture2D" uid="uid://cfyuvwjq2v1o5" path="res://hat_rack.png" id="16_hat"]
 [ext_resource type="Texture2D" uid="uid://on2friygdp8n" path="res://bookshelf.png" id="17_shelf"]
+[ext_resource type="Texture2D" uid="uid://hxjdqpy8qtmt" path="res://dresser.png" id="18_dresser"]
+[ext_resource type="Script" uid="uid://cjsdg1fpt47n1" path="res://dresser_area.gd" id="19_dresser_area"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_3dibl"]
 radius = 284.92386
@@ -84,7 +86,7 @@ size = Vector2(32.25, 467.5)
 size = Vector2(23.5, 448)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_3dibl"]
-size = Vector2(53.75, 85.5)
+size = Vector2(49.875, 42.75)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_qd1t5"]
 size = Vector2(68, 119)
@@ -104,11 +106,17 @@ radius = 502.47
 [sub_resource type="CircleShape2D" id="CircleShape2D_pill"]
 radius = 452.47
 
+[sub_resource type="CircleShape2D" id="CircleShape2D_dresser"]
+radius = 447.53693
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dresser_body"]
+size = Vector2(335.03317, 154.27577)
+
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hat_rack"]
 size = Vector2(77.07527, 159.95071)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_bookshelf"]
-size = Vector2(80, 120)
+size = Vector2(84.60794, 57.39572)
 
 [node name="Main" type="Node2D" unique_id=287502502]
 
@@ -138,10 +146,10 @@ shape = SubResource("CircleShape2D_3dibl")
 [node name="Label" type="Label" parent="Plant" unique_id=928484779]
 offset_left = -204.66138
 offset_top = 362.85718
-offset_right = 195.33862
-offset_bottom = 422.85718
-theme_override_font_sizes/font_size = 28
-text = "Press E To Use"
+offset_right = 296.33862
+offset_bottom = 436.71304
+theme_override_font_sizes/font_size = 44
+text = "Press E to Booby Trap"
 horizontal_alignment = 1
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Plant" unique_id=95277960]
@@ -175,7 +183,7 @@ position = Vector2(219.25, 51)
 shape = SubResource("RectangleShape2D_hd4p0")
 
 [node name="Dresser" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1109785271]
-position = Vector2(170, -132)
+position = Vector2(168.0625, -153.375)
 shape = SubResource("RectangleShape2D_3dibl")
 
 [node name="Bed" type="CollisionShape2D" parent="RoomBoundaries" unique_id=375256437]
@@ -222,8 +230,8 @@ offset_left = -250.0
 offset_top = -200.0
 offset_right = 250.0
 offset_bottom = -120.0
-theme_override_font_sizes/font_size = 48
-text = "Press E To Use"
+theme_override_font_sizes/font_size = 49
+text = "Press E to Booby Trap"
 horizontal_alignment = 1
 
 [node name="PillBottle" type="Sprite2D" parent="." unique_id=1661104774]
@@ -248,7 +256,40 @@ offset_top = -200.0
 offset_right = 250.0
 offset_bottom = -120.0
 theme_override_font_sizes/font_size = 48
-text = "Press E To Use"
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
+[node name="DresserProp" type="Sprite2D" parent="." unique_id=1108700908]
+z_index = 2
+position = Vector2(-174, -122)
+scale = Vector2(0.09440029, 0.08311947)
+texture = ExtResource("18_dresser")
+
+[node name="DresserArea" type="Area2D" parent="DresserProp" unique_id=2042611922]
+position = Vector2(-1077.2727, 395.45453)
+collision_layer = 0
+monitorable = false
+script = ExtResource("19_dresser_area")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DresserProp/DresserArea" unique_id=444727010]
+position = Vector2(1058.6974, -486.5281)
+shape = SubResource("CircleShape2D_dresser")
+
+[node name="Body" type="StaticBody2D" parent="DresserProp" unique_id=832295122]
+position = Vector2(-531.8182, 350)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DresserProp/Body" unique_id=580808399]
+position = Vector2(537.10254, -513.1348)
+scale = Vector2(1.0000001, 1)
+shape = SubResource("RectangleShape2D_dresser_body")
+
+[node name="Label" type="Label" parent="DresserProp" unique_id=974974974]
+offset_left = -250.0
+offset_top = -200.0
+offset_right = 251.0
+offset_bottom = -133.0
+theme_override_font_sizes/font_size = 48
+text = "Press E to Booby Trap"
 horizontal_alignment = 1
 
 [node name="HatRack" type="Sprite2D" parent="." unique_id=791289123]
@@ -273,6 +314,7 @@ texture = ExtResource("17_shelf")
 [node name="Body" type="StaticBody2D" parent="Bookshelf" unique_id=1241991946]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bookshelf/Body" unique_id=1468056463]
+position = Vector2(2.3039684, -31.302155)
 shape = SubResource("RectangleShape2D_bookshelf")
 
 [connection signal="body_entered" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_entered"]
@@ -281,3 +323,5 @@ shape = SubResource("RectangleShape2D_bookshelf")
 [connection signal="body_exited" from="LaptopCutOut/LaptopArea" to="LaptopCutOut/LaptopArea" method="_on_body_exited"]
 [connection signal="body_entered" from="PillBottle/PillBottleArea" to="PillBottle/PillBottleArea" method="_on_body_entered"]
 [connection signal="body_exited" from="PillBottle/PillBottleArea" to="PillBottle/PillBottleArea" method="_on_body_exited"]
+[connection signal="body_entered" from="DresserProp/DresserArea" to="DresserProp/DresserArea" method="_on_body_entered"]
+[connection signal="body_exited" from="DresserProp/DresserArea" to="DresserProp/DresserArea" method="_on_body_exited"]
