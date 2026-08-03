@@ -58,6 +58,36 @@ static func stop_on(sprite: CanvasItem) -> void:
 	mark_used_p2(sprite)
 
 
+## Full reset of every attached shimmer (dev bookmarks / test harness).
+static func reset_all_to_default() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	for sprite in tree.get_nodes_in_group(GROUP):
+		var n = sprite.get_node_or_null("UsableShimmer")
+		if n and n.has_method("reset_to_default"):
+			n.reset_to_default()
+
+
+## Force trap/used flags then refresh for the active turn.
+static func force_state(sprite: CanvasItem, trapped: bool, used: bool, turn: String) -> void:
+	var n = _node_on(sprite)
+	if n and n.has_method("force_dev_state"):
+		n.force_dev_state(trapped, used, turn)
+
+
+func reset_to_default() -> void:
+	p1_trapped = false
+	p2_used = false
+	_set_mode(Mode.SHIMMER)
+
+
+func force_dev_state(trapped: bool, used: bool, turn: String) -> void:
+	p1_trapped = trapped
+	p2_used = used
+	apply_turn(turn)
+
+
 func _ready() -> void:
 	_sprite = get_parent() as CanvasItem
 	if _sprite == null:

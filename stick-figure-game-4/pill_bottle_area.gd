@@ -100,3 +100,31 @@ func _pickup_to_inventory() -> void:
 	if turn_manager and turn_manager.has_method("add_inventory_pill"):
 		turn_manager.add_inventory_pill(trapped)
 	turn_manager.consume_p2_use()
+
+
+## Dev bookmarks: restore or hide world pill bottle.
+func dev_set_picked_up(picked: bool) -> void:
+	_picked_up = picked
+	player_inside = null
+	if label:
+		label.visible = false
+	if bottle == null:
+		return
+	if picked:
+		bottle.visible = false
+		monitoring = false
+		for c in get_children():
+			if c is CollisionShape2D:
+				c.disabled = true
+	else:
+		bottle.visible = true
+		monitoring = true
+		for c in get_children():
+			if c is CollisionShape2D:
+				c.disabled = false
+		var tex: Texture2D = load("res://pill_bottle.png")
+		if tex:
+			bottle.texture = tex
+		bottle.material = null
+		bottle.self_modulate = Color.WHITE
+		bottle.modulate = Color.WHITE

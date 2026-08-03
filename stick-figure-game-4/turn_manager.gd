@@ -46,11 +46,15 @@ func _ready():
 	set_process_input(true)
 	set_process_unhandled_input(true)
 	call_deferred("_build_hud")
-	# Dev-only jump bookmarks / F1 menu / CLI --bookmark= (inert in release exports).
+	# Dev-only jump bookmarks / F1 menu / CLI --bookmark=
+	# Uses load() (not preload) so release path never constructs DevMode.
+	# Scripts may still exist in the project tree; they are inert unless debug.
 	if OS.is_debug_build():
-		var dev := preload("res://dev_mode.gd").new()
-		dev.name = "DevMode"
-		add_child(dev)
+		var dev_script: Script = load("res://dev_mode.gd") as Script
+		if dev_script:
+			var dev: Node = dev_script.new()
+			dev.name = "DevMode"
+			add_child(dev)
 
 
 func switch_turn():

@@ -47,6 +47,21 @@ func apply_adhd_boost() -> void:
 	print("Player ", name, " ADHD boost ON: speed=", speed, " mult=", speed_mult, " effective=", speed * speed_mult)
 
 
+## Dev bookmarks: wipe blast / lock / speed boost back to spawn defaults.
+func dev_full_reset() -> void:
+	_blast_active = false
+	_blast_time = 0.0
+	_blast_frame_t = 0.0
+	movement_locked = false
+	velocity = Vector2.ZERO
+	_end_blast_visual()
+	speed_mult = 1.0
+	speed = 100.0
+	anim_speed = 0.15
+	anim_frame = 0
+	anim_timer = 0.0
+
+
 func set_active(active: bool):
 	is_active = active
 	$Camera2D.enabled = active

@@ -36,6 +36,28 @@ func _show_open_drawer() -> void:
 	dresser.self_modulate = Color.WHITE
 
 
+## Dev bookmarks: closed drawer, no bomb/explosion FX, trap flag set by caller.
+func dev_reset_visuals() -> void:
+	player_inside = null
+	if label:
+		label.visible = false
+	if _tex_closed and dresser:
+		dresser.texture = _tex_closed
+	if _bomb_sprite and is_instance_valid(_bomb_sprite):
+		_bomb_sprite.queue_free()
+	_bomb_sprite = null
+	# Kill leftover FX nodes from a prior eject (parent is Main for bomb spawn)
+	var main := get_node_or_null("/root/Main")
+	if main:
+		for child in main.get_children():
+			if String(child.name).begins_with("PipeBomb"):
+				child.queue_free()
+	if dresser and dresser.get_parent():
+		for child in dresser.get_parent().get_children():
+			if String(child.name).begins_with("PipeBomb"):
+				child.queue_free()
+
+
 func _dresser_half() -> Vector2:
 	if dresser.texture == null:
 		return Vector2(40, 60)

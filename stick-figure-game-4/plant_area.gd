@@ -115,6 +115,31 @@ func _input(event):
 				turn_manager.consume_p2_use()
 
 
+## Dev bookmarks: stop smoke/monster, restore normal idle plant.
+func dev_reset_visuals() -> void:
+	player_inside = null
+	if label:
+		label.visible = false
+	smoking = false
+	_gif_i = 0
+	_gif_t = 0.0
+	if _smoke_sprite and is_instance_valid(_smoke_sprite):
+		_smoke_sprite.visible = false
+		_smoke_sprite.queue_free()
+		_smoke_sprite = null
+	var main = get_node_or_null("/root/Main")
+	if main:
+		var orphan := main.get_node_or_null("PlantSmokeGIF")
+		if orphan:
+			orphan.queue_free()
+	if plant_sprite:
+		plant_sprite.self_modulate = Color.WHITE
+		plant_sprite.visible = true
+	if animation_player:
+		animation_player.active = true
+		animation_player.play("normal")
+
+
 func _start_smoke() -> void:
 	if smoking:
 		return
