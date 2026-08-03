@@ -46,6 +46,11 @@ func _ready():
 	set_process_input(true)
 	set_process_unhandled_input(true)
 	call_deferred("_build_hud")
+	# Dev-only jump bookmarks / F1 menu / CLI --bookmark= (inert in release exports).
+	if OS.is_debug_build():
+		var dev := preload("res://dev_mode.gd").new()
+		dev.name = "DevMode"
+		add_child(dev)
 
 
 func switch_turn():
