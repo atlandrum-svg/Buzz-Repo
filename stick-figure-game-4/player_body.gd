@@ -29,6 +29,14 @@ var _cart_prev_h: int = 4
 var _cart_prev_v: int = 4
 var _cart_prev_f: int = 0
 
+## Meditation sit pose (pillow use) — restore walk sheet after.
+var _meditating := false
+var _med_prev_tex: Texture2D
+var _med_prev_h: int = 4
+var _med_prev_v: int = 4
+var _med_prev_f: int = 0
+var _med_prev_scale: Vector2 = Vector2.ONE
+
 
 func _ready():
 	$Camera2D.enabled = false
@@ -52,14 +60,34 @@ func apply_drowsy_debuff() -> void:
 	speed_mult = 1.0
 	speed = 50.0
 	anim_speed = 0.28
-	var tex: Texture2D = load("res://julian assange sprite sheet black drowsy.png")
+	var tex: Texture2D = _load_walk_texture("res://p2_walk_drowsy.png")
+	if tex == null:
+		tex = _load_walk_texture("res://julian assange sprite sheet black drowsy.png")
+	if sprite == null:
+		sprite = get_node_or_null("Sprite2D") as Sprite2D
 	if tex and sprite:
 		sprite.texture = tex
 		sprite.hframes = 4
 		sprite.vframes = 4
-		# Keep facing frame in range
 		sprite.frame = mini(sprite.frame, 15)
+		print("Player ", name, " DROWSY sheet applied: ", tex.resource_path)
+	else:
+		push_error("DROWSY sheet FAILED tex=%s sprite=%s" % [tex, sprite])
 	print("Player ", name, " DROWSY ON: speed=", speed, " mult=", speed_mult)
+
+
+func _load_walk_texture(path: String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		var t: Variant = load(path)
+		if t is Texture2D:
+			return t as Texture2D
+	# Runtime decode if import missing
+	var abs_path: String = ProjectSettings.globalize_path(path)
+	if FileAccess.file_exists(abs_path):
+		var img := Image.load_from_file(abs_path)
+		if img:
+			return ImageTexture.create_from_image(img)
+	return null
 
 
 func set_active(active: bool):
@@ -80,6 +108,71 @@ func set_movement_locked(locked: bool) -> void:
 	movement_locked = locked
 	if locked and not _blast_active:
 		velocity = Vector2.ZERO
+
+
+## Snap body to world position (e.g. onto meditation pillow).
+func place_at_global(pos: Vector2) -> void:
+	global_position = pos
+	velocity = Vector2.ZERO
+	# Avoid residual slide resolution shoving us off the mat.
+	if has_method("reset_physics_interpolation"):
+		reset_physics_interpolation()
+
+
+## Single-frame sit/meditate pose. Call end_meditate_pose() to restore walk sheet.
+func begin_meditate_pose() -> void:
+	if sprite == null:
+		sprite = get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null:
+		return
+	if not _meditating:
+		_med_prev_tex = sprite.texture
+		_med_prev_h = maxi(sprite.hframes, 1)
+		_med_prev_v = maxi(sprite.vframes, 1)
+		_med_prev_f = sprite.frame
+		_med_prev_scale = sprite.scale
+	var tex: Texture2D = _load_walk_texture("res://p2_meditate.png")
+	if tex == null:
+		tex = _load_walk_texture("res://p2_meditate_review.png")
+	if tex == null:
+		push_error("Meditate pose texture missing")
+		return
+	_meditating = true
+	# Disable body collision so pillow StaticBody2D doesn't eject us sideways.
+	var col := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if col:
+		col.disabled = true
+	sprite.texture = tex
+	sprite.hframes = 1
+	sprite.vframes = 1
+	sprite.frame = 0
+	# Match on-screen height to one walk-sheet cell (prevents giant AI frames).
+	var walk_cell_h: float = 65.0
+	if _med_prev_tex != null and _med_prev_v > 0:
+		walk_cell_h = float(_med_prev_tex.get_height()) / float(_med_prev_v)
+	var med_h: float = float(tex.get_height())
+	if med_h > 1.0:
+		var s: float = walk_cell_h / med_h
+		sprite.scale = _med_prev_scale * s
+
+
+func end_meditate_pose() -> void:
+	if not _meditating:
+		return
+	_meditating = false
+	if sprite == null:
+		return
+	if _med_prev_tex != null:
+		sprite.texture = _med_prev_tex
+		sprite.hframes = _med_prev_h
+		sprite.vframes = _med_prev_v
+		var max_f: int = maxi(_med_prev_h * _med_prev_v - 1, 0)
+		sprite.frame = mini(_med_prev_f, max_f)
+	sprite.scale = _med_prev_scale
+	_med_prev_tex = null
+	var col := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if col:
+		col.disabled = not is_active
 
 
 ## Knockback away from blast, cartwheel anim, bounce off walls (collision mask).
@@ -173,9 +266,9 @@ func _physics_process(delta):
 			velocity = Vector2.ZERO
 		return
 
-	if movement_locked:
+	if movement_locked or _meditating:
+		# Do NOT move_and_slide — overlap resolve would shove us off the mat.
 		velocity = Vector2.ZERO
-		move_and_slide()
 		return
 
 	var direction = Vector2.ZERO

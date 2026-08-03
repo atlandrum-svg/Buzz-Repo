@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bfxhxwbf0bmty"
-path="res://.godot/imported/pill_bottle.png-af831a7821209e21be735e039ca68800.ctex"
+uid="uid://ce37ehe4v00fg"
+path="res://.godot/imported/vishnu_demon_possess.png-008fb20c981d1ca9af8ed0781f3730c4.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://pill_bottle.png"
-dest_files=["res://.godot/imported/pill_bottle.png-af831a7821209e21be735e039ca68800.ctex"]
+source_file="res://vishnu_demon_possess.png"
+dest_files=["res://.godot/imported/vishnu_demon_possess.png-008fb20c981d1ca9af8ed0781f3730c4.ctex"]
 
 [params]
 
@@ -31,7 +31,7 @@ process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2
 process/channel_remap/alpha=3
-process/fix_alpha_border=false
+process/fix_alpha_border=true
 process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false

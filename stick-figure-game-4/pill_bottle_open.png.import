@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bfxhxwbf0bmty"
-path="res://.godot/imported/pill_bottle.png-af831a7821209e21be735e039ca68800.ctex"
+uid="uid://cvn46ojm8kgh7"
+path="res://.godot/imported/pill_bottle_open.png-c39d05e06d2909a2f884ef7d6f86d758.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://pill_bottle.png"
-dest_files=["res://.godot/imported/pill_bottle.png-af831a7821209e21be735e039ca68800.ctex"]
+source_file="res://pill_bottle_open.png"
+dest_files=["res://.godot/imported/pill_bottle_open.png-c39d05e06d2909a2f884ef7d6f86d758.ctex"]
 
 [params]
 

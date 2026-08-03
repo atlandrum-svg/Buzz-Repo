@@ -15,6 +15,8 @@
 [ext_resource type="Texture2D" uid="uid://on2friygdp8n" path="res://bookshelf.png" id="17_shelf"]
 [ext_resource type="Texture2D" uid="uid://hxjdqpy8qtmt" path="res://dresser.png" id="18_dresser"]
 [ext_resource type="Script" uid="uid://cjsdg1fpt47n1" path="res://dresser_area.gd" id="19_dresser_area"]
+[ext_resource type="Texture2D" uid="uid://m6xb53ilkdk2" path="res://meditation_pillow.png" id="20_pillow"]
+[ext_resource type="Script" uid="uid://ccwow8ac1bk1p" path="res://meditation_pillow_area.gd" id="21_pillow_area"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_3dibl"]
 radius = 284.92386
@@ -117,6 +119,12 @@ size = Vector2(77.07527, 159.95071)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_bookshelf"]
 size = Vector2(84.60794, 57.39572)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pillow"]
+radius = 830.38184
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pillow_body"]
+size = Vector2(273.11768, 208.83751)
 
 [node name="Main" type="Node2D" unique_id=287502502]
 
@@ -242,9 +250,7 @@ texture = ExtResource("13_pill")
 
 [node name="PillBottleArea" type="Area2D" parent="PillBottle" unique_id=2015547898]
 collision_layer = 0
-collision_mask = 1
 monitorable = false
-monitoring = true
 script = ExtResource("14_pill_area")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="PillBottle/PillBottleArea" unique_id=898735073]
@@ -317,6 +323,36 @@ texture = ExtResource("17_shelf")
 position = Vector2(2.3039684, -31.302155)
 shape = SubResource("RectangleShape2D_bookshelf")
 
+[node name="MeditationPillow" type="Sprite2D" parent="." unique_id=793576651]
+z_index = 2
+position = Vector2(-175, -7)
+scale = Vector2(0.06039062, 0.05746094)
+texture = ExtResource("20_pillow")
+
+[node name="MeditationPillowArea" type="Area2D" parent="MeditationPillow" unique_id=1990549985]
+collision_layer = 0
+monitorable = false
+script = ExtResource("21_pillow_area")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MeditationPillow/MeditationPillowArea" unique_id=45477227]
+position = Vector2(-33.117752, 17.403122)
+shape = SubResource("CircleShape2D_pillow")
+
+[node name="Body" type="StaticBody2D" parent="MeditationPillow" unique_id=1790939666]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MeditationPillow/Body" unique_id=1535376137]
+position = Vector2(-16.558708, -17.403122)
+shape = SubResource("RectangleShape2D_pillow_body")
+
+[node name="Label" type="Label" parent="MeditationPillow" unique_id=1061573371]
+offset_left = -596.11896
+offset_top = -452.48126
+offset_right = 412.01288
+offset_bottom = -188.86078
+theme_override_font_sizes/font_size = 48
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
 [connection signal="body_entered" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_entered"]
 [connection signal="body_exited" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_exited"]
 [connection signal="body_entered" from="LaptopCutOut/LaptopArea" to="LaptopCutOut/LaptopArea" method="_on_body_entered"]
@@ -325,3 +361,5 @@ shape = SubResource("RectangleShape2D_bookshelf")
 [connection signal="body_exited" from="PillBottle/PillBottleArea" to="PillBottle/PillBottleArea" method="_on_body_exited"]
 [connection signal="body_entered" from="DresserProp/DresserArea" to="DresserProp/DresserArea" method="_on_body_entered"]
 [connection signal="body_exited" from="DresserProp/DresserArea" to="DresserProp/DresserArea" method="_on_body_exited"]
+[connection signal="body_entered" from="MeditationPillow/MeditationPillowArea" to="MeditationPillow/MeditationPillowArea" method="_on_body_entered"]
+[connection signal="body_exited" from="MeditationPillow/MeditationPillowArea" to="MeditationPillow/MeditationPillowArea" method="_on_body_exited"]
