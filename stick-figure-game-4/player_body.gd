@@ -1,6 +1,8 @@
 extends CharacterBody2D
 
 @export var speed = 100.0
+## Permanent multiplier (e.g. 2.5 after clean ADHD meds from inventory).
+var speed_mult: float = 1.0
 @onready var sprite = $Sprite2D
 var anim_frame = 0
 var anim_timer = 0.0
@@ -34,6 +36,15 @@ func _ready():
 		player_name = "Player1"
 	elif name == "Player2Body":
 		player_name = "Player2"
+	add_to_group("player_bodies")
+
+
+## Permanent walk boost (inventory ADHD meds — clean bottle).
+func apply_adhd_boost() -> void:
+	speed_mult = 2.5
+	speed = 200.0
+	anim_speed = 0.07
+	print("Player ", name, " ADHD boost ON: speed=", speed, " mult=", speed_mult, " effective=", speed * speed_mult)
 
 
 func set_active(active: bool):
@@ -189,5 +200,5 @@ func _physics_process(delta):
 		else:
 			sprite.frame = 0
 
-	velocity = direction * speed
+	velocity = direction * speed * speed_mult
 	move_and_slide()
