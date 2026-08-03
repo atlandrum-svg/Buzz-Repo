@@ -90,6 +90,7 @@ func _input(event):
 				UsableShimmer.mark_used_p2(plant_sprite)
 				if is_booby_trapped:
 					label.visible = false
+					player2_body.set_movement_locked(true)
 					# 1) Full original plant (monster) anim
 					plant_sprite.self_modulate = Color.WHITE
 					if animation_player:
@@ -98,9 +99,15 @@ func _input(event):
 						await animation_player.animation_finished
 					# 2) 1s pause
 					await get_tree().create_timer(1.0).timeout
-					# 3) Smoke + censor box
+					# 3) Smoke + censor — stay locked through first full smoke loop
 					_start_smoke()
+					var first_smoke := float(GIF_FRAMES) / GIF_FPS
+					var t0 := Time.get_ticks_msec()
 					await _show_censor(2.0)
+					var elapsed := (Time.get_ticks_msec() - t0) / 1000.0
+					if elapsed < first_smoke:
+						await get_tree().create_timer(first_smoke - elapsed).timeout
+					player2_body.set_movement_locked(false)
 				else:
 					label.text = ItemPrompts.used_nothing("Plant")
 					await get_tree().create_timer(1.0).timeout

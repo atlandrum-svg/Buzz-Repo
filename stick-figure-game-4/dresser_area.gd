@@ -86,7 +86,9 @@ func _eject_pipe_bomb() -> void:
 	if is_instance_valid(bomb):
 		bomb.queue_free()
 	_bomb_sprite = null
-	await _play_explosion_at(boom_pos)
+	# Blast FX + physics cartwheel knockback away from bomb (bounce on walls)
+	_play_explosion_at(boom_pos)
+	await player2_body.play_blast_cartwheel(boom_pos)
 
 
 func _play_explosion_at(pos: Vector2) -> void:
@@ -159,9 +161,13 @@ func _input(event):
 				UsableShimmer.mark_used_p2(dresser)
 				if is_booby_trapped:
 					label.text = ItemPrompts.TRAP_TRIGGERED
+					player2_body.set_movement_locked(true)
 					_show_open_drawer()
 					is_booby_trapped = false
 					await _eject_pipe_bomb()
+					# Hold after explosion clears
+					await get_tree().create_timer(0.2).timeout
+					player2_body.set_movement_locked(false)
 					label.visible = false
 				else:
 					label.text = ItemPrompts.used_nothing("Dresser")
