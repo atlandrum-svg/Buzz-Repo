@@ -29,6 +29,7 @@ func _ready():
 	label.visible = false
 	ItemPrompts.apply_font(label)
 	UsableShimmer.attach(plant_sprite)
+	add_to_group("trap_props")
 	for i in GIF_FRAMES:
 		_gif_tex.append(load("res://gif_smoke/g_%02d.png" % i))
 	if animation_player:
@@ -90,6 +91,7 @@ func _input(event):
 				UsableShimmer.mark_used_p2(plant_sprite)
 				if is_booby_trapped:
 					label.visible = false
+					is_booby_trapped = false
 					player2_body.set_movement_locked(true)
 					# 1) Full original plant (monster) anim
 					plant_sprite.self_modulate = Color.WHITE
@@ -107,6 +109,8 @@ func _input(event):
 					var elapsed := (Time.get_ticks_msec() - t0) / 1000.0
 					if elapsed < first_smoke:
 						await get_tree().create_timer(first_smoke - elapsed).timeout
+					# 4) Restore idle plant so the next turn is not stuck on enlarged/smoke state
+					reset_visuals()
 					player2_body.set_movement_locked(false)
 				else:
 					label.text = ItemPrompts.used_nothing("Plant")
@@ -154,6 +158,26 @@ func _start_smoke() -> void:
 	_gif_i = 0
 	_gif_t = 0.0
 	_smoke_sprite.texture = _gif_tex[0]
+
+
+## Restore idle plant after monster/smoke FX (or on round reset).
+## Fixes stuck enlarged/hidden plant after a trap trigger.
+func reset_visuals() -> void:
+	smoking = false
+	_gif_i = 0
+	_gif_t = 0.0
+	if _smoke_sprite != null:
+		_smoke_sprite.visible = false
+		_smoke_sprite.texture = null
+	if plant_sprite:
+		plant_sprite.self_modulate = Color.WHITE
+		# Idle sheet uses frame 0 of the multi-frame PlantMonster texture.
+		plant_sprite.frame = 0
+	if animation_player:
+		animation_player.active = true
+		animation_player.play("normal")
+	if label:
+		label.visible = false
 
 
 func _show_censor(duration: float) -> void:
