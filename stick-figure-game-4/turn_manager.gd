@@ -169,14 +169,16 @@ func _consume_inv_entry(entry: Dictionary) -> void:
 	if slot and is_instance_valid(slot):
 		slot.queue_free()
 
-	# Clean bottle → permanent P2 speed boost. Trapped side-effect later.
+	# Clean → ADHD boost. Booby-trapped → permanent drowsy (half speed + stooped sheet).
 	var was_trapped: bool = bool(entry.get("trapped", false))
-	if not was_trapped:
+	if was_trapped:
+		_apply_p2_drowsy_debuff()
+	else:
 		_apply_p2_speed_boost()
 	_update_inventory_visibility()
 
 
-func _apply_p2_speed_boost() -> void:
+func _get_player2_body() -> Node:
 	var p2: Node = null
 	if is_instance_valid(player2):
 		p2 = player2
@@ -187,6 +189,11 @@ func _apply_p2_speed_boost() -> void:
 			if b.name == "Player2Body":
 				p2 = b
 				break
+	return p2
+
+
+func _apply_p2_speed_boost() -> void:
+	var p2: Node = _get_player2_body()
 	if p2 == null:
 		push_error("ADHD boost FAILED: Player2Body not found")
 		return
@@ -197,6 +204,20 @@ func _apply_p2_speed_boost() -> void:
 		p2.set("speed", 200.0)
 		p2.set("anim_speed", 0.07)
 	print("ADHD boost applied to ", p2, " speed=", p2.get("speed"), " mult=", p2.get("speed_mult"))
+
+
+func _apply_p2_drowsy_debuff() -> void:
+	var p2: Node = _get_player2_body()
+	if p2 == null:
+		push_error("Drowsy debuff FAILED: Player2Body not found")
+		return
+	if p2.has_method("apply_drowsy_debuff"):
+		p2.call("apply_drowsy_debuff")
+	else:
+		p2.set("speed_mult", 1.0)
+		p2.set("speed", 50.0)
+		p2.set("anim_speed", 0.28)
+	print("Drowsy debuff applied to ", p2, " speed=", p2.get("speed"), " mult=", p2.get("speed_mult"))
 
 
 func _build_hud() -> void:

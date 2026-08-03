@@ -47,6 +47,21 @@ func apply_adhd_boost() -> void:
 	print("Player ", name, " ADHD boost ON: speed=", speed, " mult=", speed_mult, " effective=", speed * speed_mult)
 
 
+## Permanent drowsy state (booby-trapped pills from inventory): half speed + stooped walk sheet.
+func apply_drowsy_debuff() -> void:
+	speed_mult = 1.0
+	speed = 50.0
+	anim_speed = 0.28
+	var tex: Texture2D = load("res://julian assange sprite sheet black drowsy.png")
+	if tex and sprite:
+		sprite.texture = tex
+		sprite.hframes = 4
+		sprite.vframes = 4
+		# Keep facing frame in range
+		sprite.frame = mini(sprite.frame, 15)
+	print("Player ", name, " DROWSY ON: speed=", speed, " mult=", speed_mult)
+
+
 func set_active(active: bool):
 	is_active = active
 	$Camera2D.enabled = active
