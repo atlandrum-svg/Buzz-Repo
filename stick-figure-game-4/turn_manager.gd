@@ -18,7 +18,8 @@ var charisma: int = 70
 var intelligence: int = 40
 
 ## Compact sidebar inventory (visual language from TRAPS menu design — not full 4×4 modal).
-const INV_COLS := 4
+## 6 slots = 3 cols × 2 rows (matches gameplay inventory size).
+const INV_COLS := 3
 const INV_ROWS := 2
 const INV_SLOT_PX := 28
 

@@ -53,8 +53,8 @@ func _run() -> void:
 		push_error("[CAPTURE] FAIL: expected 3 stat bars")
 		quit(FAIL)
 		return
-	if tm._inv_slots.size() != 8:
-		push_error("[CAPTURE] FAIL: expected 8 inventory slots (4x2 compact)")
+	if tm._inv_slots.size() != 6:
+		push_error("[CAPTURE] FAIL: expected 6 inventory slots (3x2 compact)")
 		quit(FAIL)
 		return
 
@@ -87,6 +87,6 @@ func _run() -> void:
 	print("[CAPTURE] LAYOUT: top-left sidebar under trap counter")
 	print("[CAPTURE]   [TrapCounterPanel] Booby Traps n/3 — gold border dark panel PressStart2P 14")
 	print("[CAPTURE]   [StatsPanel] Agility / Charisma / Intelligence — label+value + gold fill bar")
-	print("[CAPTURE]   [InventoryPanel] wood bg purple frame — 4x2 empty dim slots")
+	print("[CAPTURE]   [InventoryPanel] wood bg purple frame — 3x2 empty dim slots")
 	print("[CAPTURE] PASS")
 	quit(PASS)
