@@ -10,6 +10,11 @@ const TRAPS_MAX := 3
 const P2_USES_MAX := 3
 var traps_left := TRAPS_MAX
 var p2_items_used := 0
+## Round result counters (Feedback P5).
+var traps_set_count := 0
+var traps_sprung_count := 0
+var traps_found_count := 0
+var round_over := false
 
 ## Placeholder character stats (0..STAT_MAX). Gameplay wires these later via setters.
 const STAT_MAX := 100
@@ -81,6 +86,10 @@ var _pills_dialog_open: bool = false
 ## Inventory entry waiting on dialog confirm (Take).
 var _pending_inv_entry: Dictionary = {}
 
+## Round-end overlay (Feedback P5).
+var _round_end_layer: CanvasLayer
+var _round_end_label: Label
+
 
 func _ready():
 	player1.set_active(true)
@@ -91,6 +100,8 @@ func _ready():
 
 
 func switch_turn():
+	if round_over:
+		return
 	if current_turn == "Player1":
 		current_turn = "Player2"
 		player1.set_active(false)
@@ -107,9 +118,10 @@ func switch_turn():
 
 
 func consume_trap() -> bool:
-	if current_turn != "Player1" or traps_left <= 0:
+	if round_over or current_turn != "Player1" or traps_left <= 0:
 		return false
 	traps_left -= 1
+	traps_set_count += 1
 	_update_hud()
 	if traps_left <= 0:
 		switch_turn()
@@ -117,13 +129,119 @@ func consume_trap() -> bool:
 
 
 func consume_p2_use() -> bool:
-	if current_turn != "Player2" or p2_items_used >= P2_USES_MAX:
+	if round_over or current_turn != "Player2" or p2_items_used >= P2_USES_MAX:
 		return false
 	p2_items_used += 1
 	_update_hud()
 	if p2_items_used >= P2_USES_MAX:
-		switch_turn()
+		_end_round()
 	return true
+
+
+func record_trap_sprung() -> void:
+	traps_sprung_count += 1
+
+
+func record_trap_found() -> void:
+	traps_found_count += 1
+
+
+func _end_round() -> void:
+	if round_over:
+		return
+	round_over = true
+	if player1:
+		player1.set_active(false)
+	if player2:
+		player2.set_active(false)
+	set_status_message("Round complete!")
+	_show_round_end()
+
+
+func _show_round_end() -> void:
+	if _round_end_layer != null:
+		_round_end_layer.visible = true
+		_refresh_round_end_text()
+		return
+	var scene = get_tree().current_scene
+	if scene == null:
+		scene = get_parent()
+	if scene == null:
+		return
+
+	_round_end_layer = CanvasLayer.new()
+	_round_end_layer.name = "RoundEndOverlay"
+	_round_end_layer.layer = 40
+	scene.add_child(_round_end_layer)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.72)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_round_end_layer.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_round_end_layer.add_child(center)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = HUD_BG
+	style.border_color = HUD_BORDER
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(18)
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	panel.add_child(col)
+
+	_round_end_label = Label.new()
+	_round_end_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if ResourceLoader.exists("res://PressStart2P-Regular.ttf"):
+		_round_end_label.add_theme_font_override("font", load("res://PressStart2P-Regular.ttf"))
+	_round_end_label.add_theme_font_size_override("font_size", 12)
+	_round_end_label.add_theme_color_override("font_color", HUD_TEXT)
+	col.add_child(_round_end_label)
+	_refresh_round_end_text()
+
+	var again_btn := Button.new()
+	again_btn.text = "Play Again"
+	if ResourceLoader.exists("res://PressStart2P-Regular.ttf"):
+		again_btn.add_theme_font_override("font", load("res://PressStart2P-Regular.ttf"))
+	again_btn.add_theme_font_size_override("font_size", 12)
+	again_btn.pressed.connect(_on_play_again)
+	col.add_child(again_btn)
+
+	var quit_btn := Button.new()
+	quit_btn.text = "Quit"
+	if ResourceLoader.exists("res://PressStart2P-Regular.ttf"):
+		quit_btn.add_theme_font_override("font", load("res://PressStart2P-Regular.ttf"))
+	quit_btn.add_theme_font_size_override("font_size", 12)
+	quit_btn.pressed.connect(_on_quit_round)
+	col.add_child(quit_btn)
+
+
+func _refresh_round_end_text() -> void:
+	if _round_end_label == null:
+		return
+	_round_end_label.text = (
+		"ROUND COMPLETE\n\n"
+		+ "Traps set: %d\n" % traps_set_count
+		+ "Traps sprung: %d\n" % traps_sprung_count
+		+ "Traps found: %d\n\n" % traps_found_count
+		+ "Play again or quit."
+	)
+
+
+func _on_play_again() -> void:
+	get_tree().reload_current_scene()
+
+
+func _on_quit_round() -> void:
+	get_tree().quit()
 
 
 ## --- Stat API (placeholder until real gameplay stats exist) ---

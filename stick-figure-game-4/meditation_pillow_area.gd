@@ -67,6 +67,8 @@ func _input(event):
 			if is_booby_trapped:
 				label.text = ItemPrompts.TRAP_FOUND
 				is_booby_trapped = false
+				if turn_manager.has_method("record_trap_found"):
+					turn_manager.record_trap_found()
 			else:
 				label.text = ItemPrompts.NO_TRAP
 			await get_tree().create_timer(1.0).timeout
@@ -84,6 +86,8 @@ func _p2_use_mat() -> void:
 		is_booby_trapped = false
 		label.text = ItemPrompts.TRAP_TRIGGERED
 		label.visible = true
+		if turn_manager.has_method("record_trap_sprung"):
+			turn_manager.record_trap_sprung()
 	else:
 		label.visible = false
 

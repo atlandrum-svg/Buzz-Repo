@@ -73,6 +73,8 @@ func _input(event):
 			UsableShimmer.mark_used_p2(bottle)
 			if is_booby_trapped:
 				label.text = ItemPrompts.TRAP_FOUND
+				if turn_manager.has_method("record_trap_found"):
+					turn_manager.record_trap_found()
 			else:
 				label.text = ItemPrompts.NO_TRAP
 			await get_tree().create_timer(1.0).timeout
@@ -88,6 +90,9 @@ func _pickup_to_inventory() -> void:
 	_picked_up = true
 	var trapped: bool = is_booby_trapped
 	label.visible = false
+	# Pills: "sprung" when a trapped bottle is picked into inventory (effect on Take).
+	if trapped and turn_manager.has_method("record_trap_sprung"):
+		turn_manager.record_trap_sprung()
 
 	UsableShimmer.mark_used_p2(bottle)
 	# Remove from world

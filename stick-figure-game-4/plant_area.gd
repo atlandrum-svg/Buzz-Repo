@@ -79,6 +79,8 @@ func _input(event):
 				if is_booby_trapped:
 					label.text = ItemPrompts.TRAP_FOUND
 					is_booby_trapped = false
+					if turn_manager.has_method("record_trap_found"):
+						turn_manager.record_trap_found()
 					await get_tree().create_timer(1.0).timeout
 					label.visible = false
 				else:
@@ -90,6 +92,8 @@ func _input(event):
 				UsableShimmer.mark_used_p2(plant_sprite)
 				if is_booby_trapped:
 					label.visible = false
+					if turn_manager.has_method("record_trap_sprung"):
+						turn_manager.record_trap_sprung()
 					player2_body.set_movement_locked(true)
 					# 1) Full original plant (monster) anim
 					plant_sprite.self_modulate = Color.WHITE
