@@ -108,6 +108,10 @@ func _p2_use_mat() -> void:
 		# Sidebar debuff icon — Vishnu artwork when available
 		if turn_manager and turn_manager.has_method("add_status_effect"):
 			turn_manager.add_status_effect("vishnu_demon", "debuff")
+		if turn_manager and turn_manager.has_method("set_status_message"):
+			turn_manager.set_status_message(
+				"You have been possessed by a 4 dimensional demon..."
+			)
 	else:
 		await get_tree().create_timer(CLEAN_SIT_SEC).timeout
 

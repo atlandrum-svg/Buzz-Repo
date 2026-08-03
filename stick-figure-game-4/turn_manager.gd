@@ -36,6 +36,14 @@ const EFFECT_ADHD := "adhd_boost"
 const EFFECT_DROWSY := "drowsy"
 const EFFECT_VISHNU := "vishnu_demon"
 
+## Sidebar status dialog (scrollable). Replaced by set_status_message().
+const MSG_P2_DEFAULT := "Use (3) Items Before You Can Proceed!"
+const MSG_VISHNU_POSSESS := "You have been possessed by a 4 dimensional demon..."
+const MSG_FENT_PILLS := "You have taken fent..."
+const STATUS_DIALOG_H := 88.0
+const STATUS_DIALOG_W := 168.0
+const STATUS_FONT_SIZE := 10
+
 ## Emitted when the player confirms Take on the Pills dialog.
 signal pills_take_pressed
 ## Emitted when the player cancels / closes the Pills dialog.
@@ -61,6 +69,12 @@ var _debuffs_row: HBoxContainer
 var _buffs_empty: Label
 var _debuffs_empty: Label
 
+## Sidebar narrative dialog (both turns; under counter for P1, under full HUD for P2).
+var _status_panel: PanelContainer
+var _status_scroll: ScrollContainer
+var _status_label: Label
+var _status_message: String = ""
+
 var _pixel_font: Font
 var _pills_dialog: Control
 var _pills_dialog_open: bool = false
@@ -81,10 +95,12 @@ func switch_turn():
 		current_turn = "Player2"
 		player1.set_active(false)
 		player2.set_active(true)
+		set_status_message(MSG_P2_DEFAULT)
 	else:
 		current_turn = "Player1"
 		player1.set_active(true)
 		player2.set_active(false)
+		set_status_message("")
 	UsableShimmer.on_turn_changed(current_turn)
 	call_deferred("_refresh_visuals")
 	_update_held_items_visibility()
@@ -210,6 +226,21 @@ func has_status_effect(id: String) -> bool:
 	return _effects.has(id)
 
 
+## Replace sidebar dialog text (wraps; scrolls if longer than the box).
+func set_status_message(text: String) -> void:
+	_status_message = text
+	if _status_label == null:
+		return
+	_status_label.text = text
+	# Jump to top when message changes so new text is visible first.
+	if _status_scroll:
+		_status_scroll.scroll_vertical = 0
+
+
+func get_status_message() -> String:
+	return _status_message
+
+
 func add_inventory_pill(trapped: bool) -> void:
 	if _inv_grid == null:
 		call_deferred("add_inventory_pill", trapped)
@@ -305,6 +336,7 @@ func _consume_inv_entry(entry: Dictionary) -> void:
 	if was_trapped:
 		_apply_p2_drowsy_debuff()
 		add_status_effect(EFFECT_DROWSY, "debuff", pill_tex, "Drowsy")
+		set_status_message(MSG_FENT_PILLS)
 	else:
 		_apply_p2_speed_boost()
 		add_status_effect(EFFECT_ADHD, "buff", pill_tex, "ADHD")
@@ -385,9 +417,14 @@ func _build_hud() -> void:
 	_build_stats_panel()
 	_build_effects_panel()
 	_build_held_items_panel()
+	# Last in column: sits under trap counter for P1 (other panels hidden),
+	# under full P2 HUD when stats/effects/use are visible.
+	_build_status_dialog_panel()
 	_build_pills_dialog()
 	_update_hud()
 	_update_held_items_visibility()
+	# Start on P1 — empty until text is set. P2 default applied on turn switch.
+	set_status_message("")
 
 
 func _build_trap_counter_panel() -> void:
@@ -628,6 +665,36 @@ func _refresh_effect_empty_labels() -> void:
 		_buffs_empty.visible = not has_buff
 	if _debuffs_empty and is_instance_valid(_debuffs_empty):
 		_debuffs_empty.visible = not has_debuff
+
+
+func _build_status_dialog_panel() -> void:
+	_status_panel = PanelContainer.new()
+	_status_panel.name = "StatusDialogPanel"
+	_status_panel.add_theme_stylebox_override("panel", _gold_panel_style(8))
+	_status_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_status_panel.custom_minimum_size = Vector2(STATUS_DIALOG_W, STATUS_DIALOG_H)
+	_sidebar.add_child(_status_panel)
+
+	_status_scroll = ScrollContainer.new()
+	_status_scroll.name = "StatusScroll"
+	_status_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_status_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_status_scroll.custom_minimum_size = Vector2(STATUS_DIALOG_W - 16.0, STATUS_DIALOG_H - 16.0)
+	_status_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_status_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	_status_panel.add_child(_status_scroll)
+
+	_status_label = Label.new()
+	_status_label.name = "StatusText"
+	_apply_hud_label(_status_label)
+	_status_label.add_theme_font_size_override("font_size", STATUS_FONT_SIZE)
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Fixed width so wrap works inside ScrollContainer.
+	_status_label.custom_minimum_size = Vector2(STATUS_DIALOG_W - 28.0, 0)
+	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_status_scroll.add_child(_status_label)
 
 
 ## Held consumables only appear while the player is carrying something.
