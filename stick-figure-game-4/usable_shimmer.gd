@@ -7,6 +7,9 @@ const SHADER_PATH := "res://usable_shimmer.gdshader"
 
 enum Mode { SHIMMER, TRAPPED_RED, OFF }
 
+## When true, P2 has spent all world-item uses — no gold shimmer on any prop.
+static var p2_world_uses_exhausted: bool = false
+
 var _sprite: CanvasItem
 var _mat: ShaderMaterial
 var _t := 0.0
@@ -45,6 +48,9 @@ static func mark_used_p2(sprite: CanvasItem) -> void:
 
 
 static func on_turn_changed(turn: String) -> void:
+	if turn == "Player1":
+		# New setup phase — allow shimmers again next P2 turn.
+		p2_world_uses_exhausted = false
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
 		return
@@ -56,6 +62,20 @@ static func on_turn_changed(turn: String) -> void:
 
 static func stop_on(sprite: CanvasItem) -> void:
 	mark_used_p2(sprite)
+
+
+## Turn off gold shimmer on every usable prop (P2 spent all 3 world uses).
+static func set_p2_world_uses_exhausted(exhausted: bool) -> void:
+	p2_world_uses_exhausted = exhausted
+	if not exhausted:
+		return
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	for sprite in tree.get_nodes_in_group(GROUP):
+		var n = sprite.get_node_or_null("UsableShimmer")
+		if n and n.has_method("force_off"):
+			n.force_off()
 
 
 func _ready() -> void:
@@ -77,9 +97,10 @@ func _process(delta: float) -> void:
 	_t += delta
 	if _mat:
 		_mat.set_shader_parameter("time", _t)
-		_mat.set_shader_parameter("strength", 0.85)
-	var pulse := 0.55 + 0.45 * sin(_t * 4.0)
-	_sprite.self_modulate = Color(1.0, 0.88 + 0.12 * pulse, 0.45 + 0.2 * pulse, 1.0)
+		_mat.set_shader_parameter("strength", 0.42)  # ~50% of original 0.85
+	# Softer gold pulse (~half prior amplitude)
+	var pulse := 0.78 + 0.22 * sin(_t * 4.0)
+	_sprite.self_modulate = Color(1.0, 0.94 + 0.06 * pulse, 0.72 + 0.1 * pulse, 1.0)
 
 
 func set_trapped_p1() -> void:
@@ -92,10 +113,14 @@ func set_used_p2() -> void:
 	_set_mode(Mode.OFF)
 
 
+func force_off() -> void:
+	_set_mode(Mode.OFF)
+
+
 func apply_turn(turn: String) -> void:
 	if turn == "Player2":
-		# Never show red to P2 — always gold unless already used by P2
-		if p2_used:
+		# Never show red to P2 — gold only if still usable this phase.
+		if p2_used or p2_world_uses_exhausted:
 			_set_mode(Mode.OFF)
 		else:
 			_set_mode(Mode.SHIMMER)
@@ -117,7 +142,8 @@ func _set_mode(m: Mode) -> void:
 		Mode.SHIMMER:
 			if _mat:
 				_sprite.material = _mat
-			_sprite.self_modulate = Color(1.0, 0.9, 0.5, 1.0)
+				_mat.set_shader_parameter("strength", 0.42)
+			_sprite.self_modulate = Color(1.0, 0.95, 0.75, 1.0)
 			set_process(true)
 		Mode.TRAPPED_RED:
 			_sprite.material = null

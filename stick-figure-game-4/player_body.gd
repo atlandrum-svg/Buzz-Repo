@@ -9,8 +9,19 @@ var anim_timer = 0.0
 @export var anim_speed = 0.15
 var is_active = false
 var player_name = ""
+## Persisted inventory status — survives evaluation lock/unlock.
+var status_adhd: bool = false
+var status_drowsy: bool = false
+const BASE_SPEED := 100.0
+const BASE_ANIM_SPEED := 0.15
 ## Trap cutscenes: freeze position/input without deactivating the player.
 var movement_locked := false
+## Scripted path (end-of-round walk): ignores WASD, walks toward a target.
+var _scripted_walk := false
+var _walk_target := Vector2.ZERO
+var _walk_arrive_dist := 10.0
+var _walk_done := false
+var _walk_stuck_t := 0.0
 
 const CARTWHEEL_FRAMES := 9
 const CARTWHEEL_FPS := 18.0
@@ -49,17 +60,17 @@ func _ready():
 
 ## Permanent walk boost (inventory ADHD meds — clean bottle).
 func apply_adhd_boost() -> void:
-	speed_mult = 2.5
-	speed = 200.0
-	anim_speed = 0.07
+	status_adhd = true
+	status_drowsy = false
+	_apply_status_movement()
 	print("Player ", name, " ADHD boost ON: speed=", speed, " mult=", speed_mult, " effective=", speed * speed_mult)
 
 
 ## Permanent drowsy state (booby-trapped pills from inventory): half speed + stooped walk sheet.
 func apply_drowsy_debuff() -> void:
-	speed_mult = 1.0
-	speed = 50.0
-	anim_speed = 0.28
+	status_drowsy = true
+	status_adhd = false
+	_apply_status_movement()
 	var tex: Texture2D = _load_walk_texture("res://p2_walk_drowsy.png")
 	if tex == null:
 		tex = _load_walk_texture("res://julian assange sprite sheet black drowsy.png")
@@ -74,6 +85,37 @@ func apply_drowsy_debuff() -> void:
 	else:
 		push_error("DROWSY sheet FAILED tex=%s sprite=%s" % [tex, sprite])
 	print("Player ", name, " DROWSY ON: speed=", speed, " mult=", speed_mult)
+
+
+## Re-apply movement modifiers from persisted status flags (safe after lock/unlock).
+func _apply_status_movement() -> void:
+	if status_adhd:
+		speed_mult = 2.5
+		speed = 200.0
+		anim_speed = 0.07
+	elif status_drowsy:
+		speed_mult = 1.0
+		speed = 50.0
+		anim_speed = 0.28
+	else:
+		speed_mult = 1.0
+		speed = BASE_SPEED
+		anim_speed = BASE_ANIM_SPEED
+
+
+func reassert_status() -> void:
+	_apply_status_movement()
+	if status_drowsy:
+		# Keep drowsy sheet if still drowsy.
+		var tex: Texture2D = _load_walk_texture("res://p2_walk_drowsy.png")
+		if tex == null:
+			tex = _load_walk_texture("res://julian assange sprite sheet black drowsy.png")
+		if sprite == null:
+			sprite = get_node_or_null("Sprite2D") as Sprite2D
+		if tex and sprite:
+			sprite.texture = tex
+			sprite.hframes = 4
+			sprite.vframes = 4
 
 
 func _load_walk_texture(path: String) -> Texture2D:
@@ -102,12 +144,42 @@ func set_active(active: bool):
 	if not active:
 		movement_locked = false
 		_end_blast_visual()
+	else:
+		# Never lose pill boosts when re-activated after cutscenes / evaluation.
+		_apply_status_movement()
 
 
 func set_movement_locked(locked: bool) -> void:
 	movement_locked = locked
 	if locked and not _blast_active:
 		velocity = Vector2.ZERO
+		_scripted_walk = false
+		_walk_done = true
+	if not locked:
+		_apply_status_movement()
+
+
+## Walk to a world position with walk anim. Ignores player input until arrived or cancelled.
+## Snaps if stuck against collision for ~1.2s.
+func walk_to(target: Vector2, arrive_dist: float = 10.0) -> void:
+	if not is_active:
+		return
+	_scripted_walk = true
+	_walk_target = target
+	_walk_arrive_dist = arrive_dist
+	_walk_done = false
+	_walk_stuck_t = 0.0
+	movement_locked = false
+	_meditating = false
+	while _scripted_walk and not _walk_done and is_instance_valid(self):
+		await get_tree().physics_frame
+	_scripted_walk = false
+	velocity = Vector2.ZERO
+	if is_instance_valid(self) and global_position.distance_to(target) > arrive_dist:
+		# Final snap if path was blocked
+		global_position = target
+		if has_method("reset_physics_interpolation"):
+			reset_physics_interpolation()
 
 
 ## Snap body to world position (e.g. onto meditation pillow).
@@ -272,14 +344,25 @@ func _physics_process(delta):
 		return
 
 	var direction = Vector2.ZERO
-	if Input.is_action_pressed("ui_up"):
-		direction.y -= 1
-	elif Input.is_action_pressed("ui_down"):
-		direction.y += 1
-	elif Input.is_action_pressed("ui_left"):
-		direction.x -= 1
-	elif Input.is_action_pressed("ui_right"):
-		direction.x += 1
+	if _scripted_walk:
+		var to_target: Vector2 = _walk_target - global_position
+		var dist: float = to_target.length()
+		if dist <= _walk_arrive_dist:
+			_walk_done = true
+			_scripted_walk = false
+			velocity = Vector2.ZERO
+			_set_idle_frame_from_last()
+			return
+		direction = to_target.normalized()
+	else:
+		if Input.is_action_pressed("ui_up"):
+			direction.y -= 1
+		elif Input.is_action_pressed("ui_down"):
+			direction.y += 1
+		elif Input.is_action_pressed("ui_left"):
+			direction.x -= 1
+		elif Input.is_action_pressed("ui_right"):
+			direction.x += 1
 
 	if direction.length() > 0:
 		direction = direction.normalized()
@@ -299,14 +382,35 @@ func _physics_process(delta):
 	elif direction.x > 0:
 		sprite.frame = 8 + anim_frame
 	else:
-		if sprite.frame >= 12:
-			sprite.frame = 12
-		elif sprite.frame >= 8:
-			sprite.frame = 8
-		elif sprite.frame >= 4:
-			sprite.frame = 4
-		else:
-			sprite.frame = 0
+		_set_idle_frame_from_last()
 
 	velocity = direction * speed * speed_mult
+	var before: Vector2 = global_position
 	move_and_slide()
+
+	if _scripted_walk:
+		var moved: float = before.distance_to(global_position)
+		if moved < 0.5:
+			_walk_stuck_t += delta
+			if _walk_stuck_t >= 1.2:
+				global_position = _walk_target
+				if has_method("reset_physics_interpolation"):
+					reset_physics_interpolation()
+				_walk_done = true
+				_scripted_walk = false
+				velocity = Vector2.ZERO
+		else:
+			_walk_stuck_t = 0.0
+
+
+func _set_idle_frame_from_last() -> void:
+	if sprite == null:
+		return
+	if sprite.frame >= 12:
+		sprite.frame = 12
+	elif sprite.frame >= 8:
+		sprite.frame = 8
+	elif sprite.frame >= 4:
+		sprite.frame = 4
+	else:
+		sprite.frame = 0

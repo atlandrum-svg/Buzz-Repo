@@ -43,8 +43,11 @@ func _on_body_entered(body):
 			label.text = ItemPrompts.TRAP
 			label.visible = true
 		elif body == player2_body and turn_manager.current_turn == "Player2":
-			label.text = ItemPrompts.INSPECT_OR_USE
-			label.visible = true
+			if turn_manager.can_p2_use_world_item():
+				label.text = ItemPrompts.INSPECT_OR_USE
+				label.visible = true
+			else:
+				label.visible = false
 
 
 func _on_body_exited(body):
@@ -69,6 +72,8 @@ func _input(event):
 		label.visible = false
 		UsableShimmer.mark_trapped_p1(bottle)
 	elif player_inside == player2_body and turn_manager.current_turn == "Player2":
+		if not turn_manager.can_p2_use_world_item():
+			return
 		if event.keycode == KEY_I:
 			UsableShimmer.mark_used_p2(bottle)
 			if is_booby_trapped:

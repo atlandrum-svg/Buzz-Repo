@@ -23,12 +23,16 @@ var _gif_tex: Array = []
 var _gif_i := 0
 var _gif_t := 0.0
 var _smoke_sprite: Sprite2D # separate node — never the multi-frame Plant sheet
+var _tex_gun: Texture2D
+var _gun_sprite: Sprite2D
+var _gun_looted := false
 
 
 func _ready():
 	label.visible = false
 	ItemPrompts.apply_font(label)
 	UsableShimmer.attach(plant_sprite)
+	_tex_gun = load("res://handgun.png")
 	for i in GIF_FRAMES:
 		_gif_tex.append(load("res://gif_smoke/g_%02d.png" % i))
 	if animation_player:
@@ -53,8 +57,11 @@ func _on_body_entered(body):
 			label.text = ItemPrompts.TRAP
 			label.visible = true
 		elif body == player2_body and turn_manager.current_turn == "Player2":
-			label.text = ItemPrompts.INSPECT_OR_USE
-			label.visible = true
+			if turn_manager.can_p2_use_world_item():
+				label.text = ItemPrompts.INSPECT_OR_USE
+				label.visible = true
+			else:
+				label.visible = false
 
 
 func _on_body_exited(body):
@@ -74,6 +81,8 @@ func _input(event):
 			label.visible = false
 			UsableShimmer.mark_trapped_p1(plant_sprite)
 		elif player_inside == player2_body and turn_manager.current_turn == "Player2":
+			if not turn_manager.can_p2_use_world_item():
+				return
 			if event.keycode == KEY_I:
 				UsableShimmer.mark_used_p2(plant_sprite)
 				if is_booby_trapped:
@@ -109,10 +118,73 @@ func _input(event):
 						await get_tree().create_timer(first_smoke - elapsed).timeout
 					player2_body.set_movement_locked(false)
 				else:
-					label.text = ItemPrompts.used_nothing("Plant")
-					await get_tree().create_timer(1.0).timeout
-					label.visible = false
+					if not _gun_looted:
+						label.visible = false
+						player2_body.set_movement_locked(true)
+						await _eject_gun_to_inventory()
+						player2_body.set_movement_locked(false)
+					else:
+						label.text = ItemPrompts.used_nothing("Plant")
+						await get_tree().create_timer(1.0).timeout
+						label.visible = false
 				turn_manager.consume_p2_use()
+
+
+## World-space feet under the plant (PlantArea collider sits on the pot base).
+func _plant_feet() -> Vector2:
+	var col := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if col:
+		return col.global_position
+	# Fallback: PlantMonster cell feet ~ local y 257
+	return plant_sprite.to_global(Vector2(0.0, 257.0))
+
+
+## Gun pops from plant, small air arc + bounce (same motion as pipe bomb), rests 1s, then inventory.
+func _eject_gun_to_inventory() -> void:
+	if _tex_gun == null:
+		if turn_manager and turn_manager.has_method("add_inventory_gun"):
+			turn_manager.add_inventory_gun()
+		_gun_looted = true
+		return
+	if _gun_sprite and is_instance_valid(_gun_sprite):
+		_gun_sprite.queue_free()
+
+	# Fixed world land spot (Joshua: x=175, y=-25).
+	var feet := _plant_feet()
+	var land := Vector2(175.0, -25.0)
+	var start := feet + Vector2(-8.0, -40.0)
+	var apex := Vector2((start.x + land.x) * 0.5, minf(start.y, land.y) - 36.0)
+
+	var gun := Sprite2D.new()
+	gun.name = "GunEject"
+	gun.texture = _tex_gun
+	gun.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	gun.z_index = plant_sprite.z_index + 2
+	var tex_w := float(_tex_gun.get_width())
+	gun.scale = Vector2.ONE * (48.0 * 0.7 / maxf(tex_w, 1.0))
+	gun.global_position = start
+	gun.rotation = -0.3
+	plant_sprite.get_parent().add_child(gun)
+	_gun_sprite = gun
+
+	var bounce := land + Vector2(-8.0, -14.0)
+	var rest := land + Vector2(-10.0, 0.0)
+	var tw := create_tween()
+	tw.tween_property(gun, "global_position", apex, 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(gun, "global_position", land, 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(gun, "global_position", bounce, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(gun, "global_position", rest, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(gun, "rotation", 0.45, 0.14)
+	await tw.finished
+
+	# Stay on ground 1s, then vanish into inventory
+	await get_tree().create_timer(1.0).timeout
+	if is_instance_valid(gun):
+		gun.queue_free()
+	_gun_sprite = null
+	_gun_looted = true
+	if turn_manager and turn_manager.has_method("add_inventory_gun"):
+		turn_manager.add_inventory_gun()
 
 
 func _start_smoke() -> void:

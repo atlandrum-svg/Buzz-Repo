@@ -24,8 +24,11 @@ func _on_body_entered(body):
 			label.text = ItemPrompts.TRAP
 			label.visible = true
 		elif body == player2_body and turn_manager.current_turn == "Player2":
-			label.text = ItemPrompts.INSPECT_OR_USE
-			label.visible = true
+			if turn_manager.can_p2_use_world_item():
+				label.text = ItemPrompts.INSPECT_OR_USE
+				label.visible = true
+			else:
+				label.visible = false
 
 
 func _on_body_exited(body):
@@ -45,6 +48,8 @@ func _input(event):
 			label.visible = false
 			UsableShimmer.mark_trapped_p1(get_parent())
 		elif player_inside == player2_body and turn_manager.current_turn == "Player2":
+			if not turn_manager.can_p2_use_world_item():
+				return
 			if event.keycode == KEY_I:
 				UsableShimmer.mark_used_p2(get_parent())
 				if is_booby_trapped:
@@ -60,9 +65,12 @@ func _input(event):
 			elif event.keycode == KEY_E:
 				UsableShimmer.mark_used_p2(get_parent())
 				if is_booby_trapped:
-					label.text = ItemPrompts.TRAP_TRIGGERED
-					await get_tree().create_timer(1.0).timeout
 					label.visible = false
+					is_booby_trapped = false
+					# End-of-round evaluation flag (cops called for illegal download).
+					if turn_manager and turn_manager.has_method("mark_illegal_download"):
+						turn_manager.mark_illegal_download()
+					await turn_manager.show_download_trap_popup(2.5)
 				else:
 					label.text = ItemPrompts.used_nothing("Laptop")
 					await get_tree().create_timer(1.0).timeout

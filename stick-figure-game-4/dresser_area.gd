@@ -86,9 +86,30 @@ func _eject_pipe_bomb() -> void:
 	if is_instance_valid(bomb):
 		bomb.queue_free()
 	_bomb_sprite = null
+	# Round evaluation flag (fire department message after 3 uses).
+	if turn_manager and turn_manager.has_method("mark_pipe_bomb_detonated"):
+		turn_manager.mark_pipe_bomb_detonated()
 	# Blast FX + physics cartwheel knockback away from bomb (bounce on walls)
+	_gib_roomate()
 	_play_explosion_at(boom_pos)
 	await player2_body.play_blast_cartwheel(boom_pos)
+
+
+## Swap roommate NPC to exploded sprite the instant the blast FX starts.
+func _gib_roomate() -> void:
+	var roomate := get_node_or_null("/root/Main/Roomate") as Sprite2D
+	if roomate == null:
+		return
+	var tex: Texture2D = load("res://roomate_exploded.png") as Texture2D
+	if tex == null:
+		return
+	# Single 66×65 cell — same size as one walk-sheet frame (hframes/vframes=1).
+	roomate.texture = tex
+	roomate.hframes = 1
+	roomate.vframes = 1
+	roomate.frame = 0
+	roomate.scale = Vector2.ONE
+	roomate.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 
 func _play_explosion_at(pos: Vector2) -> void:
@@ -124,8 +145,11 @@ func _on_body_entered(body):
 			label.text = ItemPrompts.TRAP
 			label.visible = true
 		elif body == player2_body and turn_manager.current_turn == "Player2":
-			label.text = ItemPrompts.INSPECT_OR_USE
-			label.visible = true
+			if turn_manager.can_p2_use_world_item():
+				label.text = ItemPrompts.INSPECT_OR_USE
+				label.visible = true
+			else:
+				label.visible = false
 
 
 func _on_body_exited(body):
@@ -145,6 +169,8 @@ func _input(event):
 			label.visible = false
 			UsableShimmer.mark_trapped_p1(dresser)
 		elif player_inside == player2_body and turn_manager.current_turn == "Player2":
+			if not turn_manager.can_p2_use_world_item():
+				return
 			if event.keycode == KEY_I:
 				UsableShimmer.mark_used_p2(dresser)
 				if is_booby_trapped:
