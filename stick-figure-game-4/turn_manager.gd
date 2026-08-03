@@ -11,14 +11,30 @@ const P2_USES_MAX := 3
 var traps_left := TRAPS_MAX
 var p2_items_used := 0
 
+## Placeholder character stats (0..STAT_MAX). Gameplay wires these later via setters.
+const STAT_MAX := 100
+var agility: int = 55
+var charisma: int = 70
+var intelligence: int = 40
+
 # HUD / dialog styling (matches Fizz PR art language)
 const HUD_BG := Color(0.08, 0.08, 0.12, 0.82)
 const HUD_BORDER := Color(0.95, 0.78, 0.28, 0.95)
 const HUD_TEXT := Color(1.0, 0.92, 0.55, 1.0)
 const HUD_FONT_SIZE := 14
+const BAR_FILL := Color(0.95, 0.78, 0.28, 1.0)
+const BAR_EMPTY := Color(0.18, 0.16, 0.14, 0.95)
 const INV_PURPLE := Color(0.48, 0.30, 0.62, 0.98)
+const EFFECT_SLOT_PX := 28
+const EFFECT_SLOT_BG := Color(0.10, 0.07, 0.06, 0.96)
+const EFFECT_SLOT_BORDER := Color(0.22, 0.14, 0.10, 1.0)
+const BUFF_BORDER := Color(0.35, 0.75, 0.40, 0.95)
+const DEBUFF_BORDER := Color(0.85, 0.30, 0.35, 0.95)
 
 const ITEM_PILLS := "pills"
+const EFFECT_ADHD := "adhd_boost"
+const EFFECT_DROWSY := "drowsy"
+const EFFECT_VISHNU := "vishnu_demon"
 
 ## Emitted when the player confirms Take on the Pills dialog.
 signal pills_take_pressed
@@ -28,10 +44,21 @@ signal pills_dialog_cancelled
 var _hud_layer: CanvasLayer
 var _hud_label: Label
 var _hud_panel: PanelContainer
-var _inv_panel: PanelContainer
-var _inv_grid: HBoxContainer
+var _sidebar: VBoxContainer
+var _stat_bars: Dictionary = {} # name -> {fill: ColorRect, value_label: Label}
+## Held consumables (gameplay bag — not a permanent empty inventory grid).
 ## { "id": String, "trapped": bool, "slot": Control }
 var _inv: Array = []
+var _inv_panel: PanelContainer
+var _inv_grid: HBoxContainer
+
+## Active buff/debuff icons: id -> { kind, texture, label, slot }
+var _effects: Dictionary = {}
+var _effects_panel: PanelContainer
+var _buffs_row: HBoxContainer
+var _debuffs_row: HBoxContainer
+var _buffs_empty: Label
+var _debuffs_empty: Label
 
 var _pixel_font: Font
 var _pills_dialog: Control
@@ -59,7 +86,7 @@ func switch_turn():
 		player2.set_active(false)
 	UsableShimmer.on_turn_changed(current_turn)
 	call_deferred("_refresh_visuals")
-	_update_inventory_visibility()
+	_update_held_items_visibility()
 
 
 func consume_trap() -> bool:
@@ -82,6 +109,71 @@ func consume_p2_use() -> bool:
 	return true
 
 
+## --- Stat API (placeholder until real gameplay stats exist) ---
+
+func set_agility(value: int) -> void:
+	agility = clampi(value, 0, STAT_MAX)
+	_refresh_stat_bar("Agility", agility)
+
+
+func set_charisma(value: int) -> void:
+	charisma = clampi(value, 0, STAT_MAX)
+	_refresh_stat_bar("Charisma", charisma)
+
+
+func set_intelligence(value: int) -> void:
+	intelligence = clampi(value, 0, STAT_MAX)
+	_refresh_stat_bar("Intelligence", intelligence)
+
+
+func set_stats(agi: int, cha: int, intel: int) -> void:
+	set_agility(agi)
+	set_charisma(cha)
+	set_intelligence(intel)
+
+
+## --- Buff / Debuff status icons (sidebar under attributes) ---
+
+## kind: "buff" or "debuff". Replaces any existing effect with the same id.
+func add_status_effect(id: String, kind: String, texture: Texture2D = null, display_name: String = "") -> void:
+	if id.is_empty():
+		return
+	remove_status_effect(id)
+	var is_buff := kind.to_lower() != "debuff"
+	var row: HBoxContainer = _buffs_row if is_buff else _debuffs_row
+	if row == null:
+		return
+	var slot := _make_effect_slot(id, is_buff, texture, display_name)
+	row.add_child(slot)
+	_effects[id] = {
+		"kind": "buff" if is_buff else "debuff",
+		"texture": texture,
+		"label": display_name,
+		"slot": slot,
+	}
+	_refresh_effect_empty_labels()
+
+
+func remove_status_effect(id: String) -> void:
+	if not _effects.has(id):
+		return
+	var entry: Dictionary = _effects[id]
+	var slot: Control = entry.get("slot") as Control
+	if slot and is_instance_valid(slot):
+		slot.queue_free()
+	_effects.erase(id)
+	_refresh_effect_empty_labels()
+
+
+func clear_status_effects() -> void:
+	for id in _effects.keys().duplicate():
+		remove_status_effect(String(id))
+
+
+func has_status_effect(id: String) -> bool:
+	return _effects.has(id)
+
+
 func add_inventory_pill(trapped: bool) -> void:
 	if _inv_grid == null:
 		call_deferred("add_inventory_pill", trapped)
@@ -90,7 +182,7 @@ func add_inventory_pill(trapped: bool) -> void:
 
 	# Plain Panel + icon — clicks handled in _input via global rect hit-test
 	var slot := Panel.new()
-	slot.custom_minimum_size = Vector2(64, 64)
+	slot.custom_minimum_size = Vector2(40, 40)
 	slot.mouse_filter = Control.MOUSE_FILTER_STOP
 	slot.focus_mode = Control.FOCUS_NONE
 	slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -103,10 +195,10 @@ func add_inventory_pill(trapped: bool) -> void:
 
 	var icon := TextureRect.new()
 	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	icon.offset_left = 4
-	icon.offset_top = 4
-	icon.offset_right = -4
-	icon.offset_bottom = -4
+	icon.offset_left = 3
+	icon.offset_top = 3
+	icon.offset_right = -3
+	icon.offset_bottom = -3
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -118,10 +210,10 @@ func add_inventory_pill(trapped: bool) -> void:
 	var entry := {"id": ITEM_PILLS, "trapped": trapped, "slot": slot}
 	_inv.append(entry)
 	_inv_grid.add_child(slot)
-	_update_inventory_visibility()
+	_update_held_items_visibility()
 
 
-## Global mouse hit-test for inventory slots (does not rely on Button signals).
+## Global mouse hit-test for held-item slots (does not rely on Button signals).
 func _input(event: InputEvent) -> void:
 	if _pills_dialog_open:
 		return
@@ -171,11 +263,16 @@ func _consume_inv_entry(entry: Dictionary) -> void:
 
 	# Clean → ADHD boost. Booby-trapped → permanent drowsy (half speed + stooped sheet).
 	var was_trapped: bool = bool(entry.get("trapped", false))
+	var pill_tex: Texture2D = null
+	if ResourceLoader.exists("res://pill_bottle.png"):
+		pill_tex = load("res://pill_bottle.png")
 	if was_trapped:
 		_apply_p2_drowsy_debuff()
+		add_status_effect(EFFECT_DROWSY, "debuff", pill_tex, "Drowsy")
 	else:
 		_apply_p2_speed_boost()
-	_update_inventory_visibility()
+		add_status_effect(EFFECT_ADHD, "buff", pill_tex, "ADHD")
+	_update_held_items_visibility()
 
 
 func _get_player2_body() -> Node:
@@ -233,65 +330,300 @@ func _build_hud() -> void:
 	if ResourceLoader.exists("res://PressStart2P-Regular.ttf"):
 		_pixel_font = load("res://PressStart2P-Regular.ttf")
 
-	var vbox := VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	vbox.offset_left = 16
-	vbox.offset_top = 16
-	vbox.add_theme_constant_override("separation", 10)
-	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hud_layer.add_child(vbox)
+	var margin := MarginContainer.new()
+	margin.name = "SidebarMargin"
+	margin.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	margin.offset_left = 16
+	margin.offset_top = 16
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_layer.add_child(margin)
 
+	# Single column under the trap counter — stats + buffs/debuffs share this HUD root.
+	_sidebar = VBoxContainer.new()
+	_sidebar.name = "SidebarColumn"
+	_sidebar.add_theme_constant_override("separation", 6)
+	_sidebar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(_sidebar)
+
+	_build_trap_counter_panel()
+	_build_stats_panel()
+	_build_effects_panel()
+	_build_held_items_panel()
+	_build_pills_dialog()
+	_update_hud()
+	_update_held_items_visibility()
+
+
+func _build_trap_counter_panel() -> void:
 	_hud_panel = PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = HUD_BG
-	style.border_color = HUD_BORDER
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(6)
-	style.set_content_margin_all(12)
-	_hud_panel.add_theme_stylebox_override("panel", style)
+	_hud_panel.name = "TrapCounterPanel"
+	_hud_panel.add_theme_stylebox_override("panel", _gold_panel_style(12))
 	_hud_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(_hud_panel)
+	_sidebar.add_child(_hud_panel)
 
 	_hud_label = Label.new()
 	_apply_hud_label(_hud_label)
 	_hud_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud_panel.add_child(_hud_label)
 
+
+func _build_stats_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.name = "StatsPanel"
+	panel.add_theme_stylebox_override("panel", _gold_panel_style(10))
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sidebar.add_child(panel)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(col)
+
+	for entry in [
+		["Agility", agility],
+		["Charisma", charisma],
+		["Intelligence", intelligence],
+	]:
+		col.add_child(_make_stat_row(String(entry[0]), int(entry[1])))
+
+
+func _make_stat_row(stat_name: String, value: int) -> Control:
+	var row := VBoxContainer.new()
+	row.name = "%sRow" % stat_name
+	row.add_theme_constant_override("separation", 3)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 6)
+	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(header)
+
+	var name_label := Label.new()
+	_apply_hud_label(name_label)
+	name_label.text = stat_name
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(name_label)
+
+	var value_label := Label.new()
+	_apply_hud_label(value_label)
+	value_label.text = str(value)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(value_label)
+
+	# Manual track + fill ColorRects (pixel-clear fill width; no ProgressBar theme quirks).
+	const BAR_W := 148.0
+	const BAR_H := 12.0
+	var track := Control.new()
+	track.name = "BarTrack"
+	track.custom_minimum_size = Vector2(BAR_W, BAR_H)
+	track.clip_contents = true
+	track.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(track)
+
+	var border := ColorRect.new()
+	border.color = HUD_BORDER.darkened(0.35)
+	border.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	border.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	track.add_child(border)
+
+	var bg := ColorRect.new()
+	bg.color = BAR_EMPTY
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.offset_left = 1
+	bg.offset_top = 1
+	bg.offset_right = -1
+	bg.offset_bottom = -1
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	track.add_child(bg)
+
+	var fill := ColorRect.new()
+	fill.name = "Fill"
+	fill.color = BAR_FILL
+	fill.position = Vector2(1, 1)
+	fill.size = Vector2(0, BAR_H - 2)
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	track.add_child(fill)
+
+	_stat_bars[stat_name] = {
+		"fill": fill,
+		"value_label": value_label,
+		"bar_w": BAR_W - 2.0,
+		"bar_h": BAR_H - 2.0,
+	}
+	_refresh_stat_bar(stat_name, value)
+	return row
+
+
+func _refresh_stat_bar(stat_name: String, value: int) -> void:
+	if not _stat_bars.has(stat_name):
+		return
+	var entry: Dictionary = _stat_bars[stat_name]
+	var v := clampi(value, 0, STAT_MAX)
+	var ratio := float(v) / float(STAT_MAX)
+	var fill: ColorRect = entry["fill"]
+	var bar_w: float = entry["bar_w"]
+	var bar_h: float = entry["bar_h"]
+	fill.size = Vector2(bar_w * ratio, bar_h)
+	var value_label: Label = entry["value_label"]
+	value_label.text = str(v)
+
+
+func _build_effects_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.name = "EffectsPanel"
+	panel.add_theme_stylebox_override("panel", _gold_panel_style(8))
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sidebar.add_child(panel)
+	_effects_panel = panel
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(col)
+
+	var title := Label.new()
+	_apply_hud_label(title)
+	title.text = "Buffs & Debuffs"
+	title.add_theme_font_size_override("font_size", 10)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(title)
+
+	# Buffs row
+	var buff_label := Label.new()
+	_apply_hud_label(buff_label)
+	buff_label.text = "Buffs"
+	buff_label.add_theme_font_size_override("font_size", 8)
+	buff_label.add_theme_color_override("font_color", BUFF_BORDER)
+	buff_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(buff_label)
+
+	_buffs_row = HBoxContainer.new()
+	_buffs_row.name = "BuffsRow"
+	_buffs_row.add_theme_constant_override("separation", 4)
+	_buffs_row.custom_minimum_size = Vector2(148, EFFECT_SLOT_PX)
+	_buffs_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_buffs_row)
+
+	_buffs_empty = Label.new()
+	_apply_hud_label(_buffs_empty)
+	_buffs_empty.name = "BuffsEmpty"
+	_buffs_empty.text = "—"
+	_buffs_empty.add_theme_font_size_override("font_size", 8)
+	_buffs_empty.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40, 0.85))
+	_buffs_empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_buffs_row.add_child(_buffs_empty)
+
+	# Debuffs row
+	var debuff_label := Label.new()
+	_apply_hud_label(debuff_label)
+	debuff_label.text = "Debuffs"
+	debuff_label.add_theme_font_size_override("font_size", 8)
+	debuff_label.add_theme_color_override("font_color", DEBUFF_BORDER)
+	debuff_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(debuff_label)
+
+	_debuffs_row = HBoxContainer.new()
+	_debuffs_row.name = "DebuffsRow"
+	_debuffs_row.add_theme_constant_override("separation", 4)
+	_debuffs_row.custom_minimum_size = Vector2(148, EFFECT_SLOT_PX)
+	_debuffs_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_debuffs_row)
+
+	_debuffs_empty = Label.new()
+	_apply_hud_label(_debuffs_empty)
+	_debuffs_empty.name = "DebuffsEmpty"
+	_debuffs_empty.text = "—"
+	_debuffs_empty.add_theme_font_size_override("font_size", 8)
+	_debuffs_empty.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40, 0.85))
+	_debuffs_empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_debuffs_row.add_child(_debuffs_empty)
+
+
+func _make_effect_slot(id: String, is_buff: bool, texture: Texture2D, display_name: String) -> PanelContainer:
+	var slot := PanelContainer.new()
+	slot.name = "Effect_%s" % id
+	slot.custom_minimum_size = Vector2(EFFECT_SLOT_PX, EFFECT_SLOT_PX)
+	slot.tooltip_text = display_name if not display_name.is_empty() else id
+	var style := StyleBoxFlat.new()
+	style.bg_color = EFFECT_SLOT_BG
+	style.border_color = BUFF_BORDER if is_buff else DEBUFF_BORDER
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(2)
+	style.set_content_margin_all(2)
+	slot.add_theme_stylebox_override("panel", style)
+	slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	if texture != null:
+		var icon := TextureRect.new()
+		icon.texture = texture
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.custom_minimum_size = Vector2(EFFECT_SLOT_PX - 6, EFFECT_SLOT_PX - 6)
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(icon)
+	else:
+		var fallback := Label.new()
+		_apply_hud_label(fallback)
+		fallback.text = display_name.left(2).to_upper() if not display_name.is_empty() else "?"
+		fallback.add_theme_font_size_override("font_size", 8)
+		fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(fallback)
+	return slot
+
+
+func _refresh_effect_empty_labels() -> void:
+	var has_buff := false
+	var has_debuff := false
+	for id in _effects:
+		var kind: String = String(_effects[id].get("kind", ""))
+		if kind == "buff":
+			has_buff = true
+		else:
+			has_debuff = true
+	if _buffs_empty and is_instance_valid(_buffs_empty):
+		_buffs_empty.visible = not has_buff
+	if _debuffs_empty and is_instance_valid(_debuffs_empty):
+		_debuffs_empty.visible = not has_debuff
+
+
+## Held consumables only appear while the player is carrying something.
+## Not a permanent inventory grid — bag UI for use-before-effect.
+func _build_held_items_panel() -> void:
 	_inv_panel = PanelContainer.new()
-	var inv_style := StyleBoxFlat.new()
-	inv_style.bg_color = HUD_BG
-	inv_style.border_color = HUD_BORDER
-	inv_style.set_border_width_all(2)
-	inv_style.set_corner_radius_all(6)
-	inv_style.set_content_margin_all(10)
-	_inv_panel.add_theme_stylebox_override("panel", inv_style)
+	_inv_panel.name = "HeldItemsPanel"
+	_inv_panel.add_theme_stylebox_override("panel", _gold_panel_style(8))
 	_inv_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	vbox.add_child(_inv_panel)
+	_inv_panel.visible = false
+	_sidebar.add_child(_inv_panel)
 
 	var inv_vbox := VBoxContainer.new()
-	inv_vbox.add_theme_constant_override("separation", 8)
+	inv_vbox.add_theme_constant_override("separation", 6)
 	inv_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_inv_panel.add_child(inv_vbox)
 
 	var inv_title := Label.new()
-	inv_title.text = "Inventory"
+	inv_title.text = "Use"
 	_apply_hud_label(inv_title)
-	inv_title.add_theme_font_size_override("font_size", 12)
+	inv_title.add_theme_font_size_override("font_size", 10)
 	inv_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	inv_vbox.add_child(inv_title)
 
 	_inv_grid = HBoxContainer.new()
-	_inv_grid.add_theme_constant_override("separation", 8)
-	_inv_grid.custom_minimum_size = Vector2(180, 64)
+	_inv_grid.name = "HeldGrid"
+	_inv_grid.add_theme_constant_override("separation", 6)
+	_inv_grid.custom_minimum_size = Vector2(148, 40)
 	_inv_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	inv_vbox.add_child(_inv_grid)
 
-	_build_pills_dialog()
-	_update_hud()
-	_update_inventory_visibility()
 
-
-## --- Pills confirm dialog (from Fizz PR #4 — surgically ported) ---
+## --- Pills confirm dialog ---
 
 func _build_pills_dialog() -> void:
 	var root := Control.new()
@@ -486,16 +818,17 @@ func _apply_hud_label(label: Label) -> void:
 	label.add_theme_color_override("font_color", HUD_TEXT)
 
 
-func _update_inventory_visibility() -> void:
+func _update_held_items_visibility() -> void:
 	if _inv_panel == null:
 		return
-	_inv_panel.visible = (current_turn == "Player2") or _inv.size() > 0
+	# Only show while carrying something (no permanent empty inventory grid).
+	_inv_panel.visible = _inv.size() > 0
 
 
 func _refresh_visuals() -> void:
 	UsableShimmer.on_turn_changed(current_turn)
 	_update_hud()
-	_update_inventory_visibility()
+	_update_held_items_visibility()
 
 
 func _update_hud() -> void:
@@ -505,4 +838,8 @@ func _update_hud() -> void:
 		_hud_label.text = "Booby Traps: %d/%d" % [traps_left, TRAPS_MAX]
 	else:
 		_hud_label.text = "Items Used: %d/%d" % [p2_items_used, P2_USES_MAX]
+	# Same visibility rule as before: whole GameHUD layer (counter + stats + effects).
 	_hud_layer.visible = true
+	_refresh_stat_bar("Agility", agility)
+	_refresh_stat_bar("Charisma", charisma)
+	_refresh_stat_bar("Intelligence", intelligence)
