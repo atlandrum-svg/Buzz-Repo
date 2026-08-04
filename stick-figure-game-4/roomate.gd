@@ -3,6 +3,7 @@ extends Sprite2D
 ## Avoids LizardOnlyBlocker (collision_layer 2) — players ignore that layer.
 
 const TEX_PATH := "res://skitterscale-sheet.png"
+const TEX_GUN_PATH := "res://skitterscale_gun_sheet.png"
 const TEX_REMNANT := "res://skitterscale_remnant.png"
 const HFRAMES := 4
 const VFRAMES := 4
@@ -18,6 +19,7 @@ const Y_LINE := -125.0
 const Y_FLOOR := 240.0
 const START_POS := Vector2(-82.0, -100.0)
 const DRAW_SCALE := 0.675
+const PILL_SPEED_MULT := 5.0
 ## Matches StaticBody2D LizardOnlyBlocker.collision_layer in the main scene.
 const LIZARD_BLOCK_MASK := 2
 const HIT_SIZE := Vector2(14.0, 12.0)
@@ -29,6 +31,10 @@ var _dir: Vector2 = Vector2.LEFT
 var _dir_t: float = 0.0
 var _pause_t: float = 0.0
 var _gibbed: bool = false
+## Dead from booby-trapped pills (upside-down start pose). Bomb gib still works after.
+var _dead_from_pills: bool = false
+var _has_gun: bool = false
+var _speed_mult: float = 1.0
 var _probe: RectangleShape2D
 
 
@@ -42,6 +48,7 @@ func _ready() -> void:
 	hframes = HFRAMES
 	vframes = VFRAMES
 	scale = Vector2(DRAW_SCALE, DRAW_SCALE)
+	flip_v = false
 	_disable_collision()
 	_probe = RectangleShape2D.new()
 	_probe.size = HIT_SIZE
@@ -52,6 +59,58 @@ func _ready() -> void:
 	_pick_dir()
 	_pause_t = randf_range(0.2, 0.8)
 	set_process(true)
+
+
+func is_alive() -> bool:
+	return not _gibbed and not _dead_from_pills
+
+
+## Clean pills → 5× roam (zippy). Booby-trapped → die upside-down, frozen.
+func give_pills(trapped: bool) -> void:
+	if not is_alive():
+		return
+	if trapped:
+		_die_from_pills()
+	else:
+		_speed_mult = PILL_SPEED_MULT
+
+
+## Equips gun sheet (tail holds handgun). Keeps current facing/walk.
+func give_gun() -> void:
+	if not is_alive():
+		return
+	_has_gun = true
+	var tex: Texture2D = load(TEX_GUN_PATH) as Texture2D
+	if tex == null:
+		tex = load(TEX_PATH) as Texture2D
+	if tex != null:
+		texture = tex
+	hframes = HFRAMES
+	vframes = VFRAMES
+	flip_v = false
+	scale = Vector2(DRAW_SCALE, DRAW_SCALE)
+	_apply_frame()
+
+
+func _die_from_pills() -> void:
+	_dead_from_pills = true
+	_speed_mult = 1.0
+	set_process(false)
+	# Sheet: first column, second row (row1/col0 → frame 4), upside down (legs in air).
+	# Prefer gun sheet if equipped so death pose still matches.
+	var path: String = TEX_GUN_PATH if _has_gun else TEX_PATH
+	var tex: Texture2D = load(path) as Texture2D
+	if tex == null:
+		tex = load(TEX_PATH) as Texture2D
+	if tex != null:
+		texture = tex
+	hframes = HFRAMES
+	vframes = VFRAMES
+	_facing_row = ROW_LEFT
+	_anim_frame = 0
+	frame = ROW_LEFT * HFRAMES + 0 # frame 4
+	flip_v = true
+	scale = Vector2(DRAW_SCALE, DRAW_SCALE)
 
 
 func _disable_collision() -> void:
@@ -66,7 +125,7 @@ func _disable_collision() -> void:
 
 
 func _process(delta: float) -> void:
-	if _gibbed:
+	if _gibbed or _dead_from_pills:
 		return
 	if texture == null:
 		var tex: Texture2D = load(TEX_PATH) as Texture2D
@@ -88,7 +147,7 @@ func _process(delta: float) -> void:
 			return
 		_pick_dir()
 
-	var step: float = WALK_SPEED * delta
+	var step: float = WALK_SPEED * _speed_mult * delta
 	var next: Vector2 = position + _dir * step
 	if next.x < ROOM_MIN_X or next.x > X_MAX:
 		_dir.x *= -1.0
@@ -107,8 +166,10 @@ func _process(delta: float) -> void:
 			next = position
 	position = next
 
+	# Faster gait when juiced so legs keep up with the dash.
+	var frame_dt: float = ANIM_SPEED / maxf(_speed_mult, 1.0)
 	_anim_t += delta
-	if _anim_t >= ANIM_SPEED:
+	if _anim_t >= frame_dt:
 		_anim_t = 0.0
 		_anim_frame = (_anim_frame + 1) % HFRAMES
 	_apply_frame()
@@ -127,12 +188,14 @@ func _blocked_at(world_pos: Vector2) -> bool:
 	return not space.intersect_shape(q, 1).is_empty()
 
 
-## boom_global unused (no chunks); kept for dresser_area call site.
+## Bomb detonation: always go to blood/burn remnant (even if already dead from pills).
 func gib_from_blast(_boom_global: Vector2) -> void:
 	if _gibbed:
 		return
 	_gibbed = true
+	_dead_from_pills = true
 	set_process(false)
+	flip_v = false
 
 	var rem: Texture2D = load(TEX_REMNANT) as Texture2D
 	if rem != null:
@@ -148,6 +211,7 @@ func stop_for_gib() -> void:
 	if _gibbed:
 		return
 	_gibbed = true
+	_dead_from_pills = true
 	set_process(false)
 
 

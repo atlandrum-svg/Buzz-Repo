@@ -131,6 +131,8 @@ var _status_message: String = ""
 var _pixel_font: Font
 var _pills_dialog: Control
 var _pills_dialog_open: bool = false
+var _gun_give_dialog: Control
+var _gun_give_dialog_open: bool = false
 ## Inventory entry waiting on dialog confirm (Take).
 var _pending_inv_entry: Dictionary = {}
 ## Booby-trapped laptop "downloading" popup (centered, timed).
@@ -357,6 +359,8 @@ func begin_end_of_round_evaluation() -> void:
 	_update_held_items_visibility()
 	if _pills_dialog_open:
 		hide_pills_dialog()
+	if _gun_give_dialog_open:
+		hide_gun_give_dialog()
 
 	# Play every triggered outcome message, one at a time (typewriter + 2.5s hold each).
 	var messages: Array = _build_eval_message_queue()
@@ -1175,7 +1179,7 @@ func _add_inventory_slot(id: String, tex: Texture2D, extra: Dictionary = {}) -> 
 ## Global mouse hit-test for held-item slots (does not rely on Button signals).
 func _input(event: InputEvent) -> void:
 	# Inventory stays usable in end-of-round free roam. Only block over modal dialogs.
-	if _pills_dialog_open or _leave_dialog_open or _gun_lesson_dialog_open:
+	if _pills_dialog_open or _gun_give_dialog_open or _leave_dialog_open or _gun_lesson_dialog_open:
 		return
 	if _inv.is_empty():
 		return
@@ -1205,7 +1209,8 @@ func _on_inventory_slot_selected(entry: Dictionary) -> void:
 		show_pills_dialog()
 		return
 	if id == ITEM_GUN:
-		# Held for now — use/fire wiring comes later
+		_pending_inv_entry = entry
+		show_gun_give_dialog()
 		return
 	# Unknown items: no-op for now
 
@@ -1326,6 +1331,7 @@ func _build_hud() -> void:
 	# under full P2 HUD when stats/effects/use are visible.
 	_build_status_dialog_panel()
 	_build_pills_dialog()
+	_build_gun_give_dialog()
 	_build_download_dialog()
 	_build_evaluation_dialog()
 	_build_leave_apartment_dialog()
@@ -1732,6 +1738,11 @@ func _build_pills_dialog() -> void:
 	cancel_btn.pressed.connect(_on_pills_cancel_pressed)
 	btn_row.add_child(cancel_btn)
 
+	var give_btn := _make_dialog_button("Give pills to pet lizard", "GiveLizardButton")
+	give_btn.custom_minimum_size = Vector2(200, 28)
+	give_btn.pressed.connect(_on_pills_give_lizard_pressed)
+	col.add_child(give_btn)
+
 
 func _make_dialog_button(text: String, node_name: String) -> Button:
 	var btn := Button.new()
@@ -1772,9 +1783,171 @@ func show_pills_dialog() -> void:
 		return
 	_pills_dialog.visible = true
 	_pills_dialog_open = true
+	var give_btn := _pills_dialog.find_child("GiveLizardButton", true, false) as Button
+	if give_btn:
+		give_btn.visible = _is_pet_lizard_alive()
 	var take_btn := _pills_dialog.find_child("TakeButton", true, false) as Button
 	if take_btn:
 		take_btn.grab_focus()
+
+
+func _is_pet_lizard_alive() -> bool:
+	var roomate := get_node_or_null("/root/Main/Roomate")
+	if roomate == null:
+		return false
+	if roomate.has_method("is_alive"):
+		return bool(roomate.call("is_alive"))
+	return is_instance_valid(roomate)
+
+
+## --- Gun give dialog (inventory click) ---
+
+func _build_gun_give_dialog() -> void:
+	var root := Control.new()
+	root.name = "GunGiveDialog"
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.visible = false
+	_hud_layer.add_child(root)
+	_gun_give_dialog = root
+
+	var dim := ColorRect.new()
+	dim.name = "Dim"
+	dim.color = Color(0.02, 0.02, 0.05, 0.62)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(_on_gun_give_dim_gui_input)
+	root.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.name = "Center"
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(center)
+
+	var outer := PanelContainer.new()
+	outer.name = "OuterFrame"
+	var outer_style := StyleBoxFlat.new()
+	outer_style.bg_color = INV_PURPLE
+	outer_style.border_color = INV_PURPLE.lightened(0.15)
+	outer_style.set_border_width_all(2)
+	outer_style.set_corner_radius_all(6)
+	outer_style.set_content_margin_all(4)
+	outer.add_theme_stylebox_override("panel", outer_style)
+	center.add_child(outer)
+
+	var panel := PanelContainer.new()
+	panel.name = "DialogPanel"
+	var panel_style := _gold_panel_style(14)
+	panel_style.bg_color = Color(0.12, 0.08, 0.10, 0.96)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	outer.add_child(panel)
+
+	var col := VBoxContainer.new()
+	col.name = "Content"
+	col.add_theme_constant_override("separation", 12)
+	col.custom_minimum_size = Vector2(220, 0)
+	panel.add_child(col)
+
+	var title := Label.new()
+	_apply_hud_label(title)
+	title.name = "Title"
+	title.text = "Gun"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(title)
+
+	var icon_row := CenterContainer.new()
+	col.add_child(icon_row)
+	if ResourceLoader.exists("res://handgun.png"):
+		var icon := TextureRect.new()
+		icon.texture = load("res://handgun.png")
+		icon.custom_minimum_size = Vector2(48, 32)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon_row.add_child(icon)
+
+	var prompt := Label.new()
+	_apply_hud_label(prompt)
+	prompt.name = "Prompt"
+	prompt.text = "What do you want to do?"
+	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt.add_theme_font_size_override("font_size", 10)
+	col.add_child(prompt)
+
+	var give_btn := _make_dialog_button("Give gun to lizard", "GiveGunLizardButton")
+	give_btn.custom_minimum_size = Vector2(200, 28)
+	give_btn.pressed.connect(_on_gun_give_lizard_pressed)
+	col.add_child(give_btn)
+
+	var cancel_btn := _make_dialog_button("Cancel", "GunCancelButton")
+	cancel_btn.pressed.connect(_on_gun_give_cancel_pressed)
+	col.add_child(cancel_btn)
+
+
+func show_gun_give_dialog() -> void:
+	if _gun_give_dialog == null:
+		return
+	_gun_give_dialog.visible = true
+	_gun_give_dialog_open = true
+	var give_btn := _gun_give_dialog.find_child("GiveGunLizardButton", true, false) as Button
+	if give_btn:
+		give_btn.visible = _is_pet_lizard_alive()
+		if give_btn.visible:
+			give_btn.grab_focus()
+		else:
+			var cancel_btn := _gun_give_dialog.find_child("GunCancelButton", true, false) as Button
+			if cancel_btn:
+				cancel_btn.grab_focus()
+
+
+func hide_gun_give_dialog() -> void:
+	if _gun_give_dialog == null:
+		return
+	_gun_give_dialog.visible = false
+	_gun_give_dialog_open = false
+
+
+func _on_gun_give_lizard_pressed() -> void:
+	var entry: Dictionary = _pending_inv_entry
+	_pending_inv_entry = {}
+	hide_gun_give_dialog()
+	if entry.is_empty():
+		return
+	if not _is_pet_lizard_alive():
+		return
+	# Remove gun from inventory.
+	if not _inv.has(entry):
+		var matched: Dictionary = {}
+		var ok := false
+		for e in _inv:
+			if e.get("slot") == entry.get("slot"):
+				matched = e
+				ok = true
+				break
+		if not ok:
+			return
+		entry = matched
+	_inv.erase(entry)
+	var slot: Control = entry.get("slot") as Control
+	if slot and is_instance_valid(slot):
+		slot.queue_free()
+	_update_held_items_visibility()
+
+	var roomate := get_node_or_null("/root/Main/Roomate")
+	if roomate and roomate.has_method("give_gun"):
+		roomate.call("give_gun")
+	set_status_message("The pet lizard took the gun — careful where it points that tail.")
+
+
+func _on_gun_give_cancel_pressed() -> void:
+	_pending_inv_entry = {}
+	hide_gun_give_dialog()
+
+
+func _on_gun_give_dim_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_on_gun_give_cancel_pressed()
 
 
 ## Centered popup: "DOWNLOADING HIGHLY / ILLEGAL MATERIAL" + animating ellipsis. 2.5s default.
@@ -2312,6 +2485,47 @@ func _on_pills_take_pressed() -> void:
 		_consume_inv_entry(entry)
 
 
+func _on_pills_give_lizard_pressed() -> void:
+	var entry: Dictionary = _pending_inv_entry
+	_pending_inv_entry = {}
+	hide_pills_dialog()
+	if entry.is_empty():
+		return
+	if not _is_pet_lizard_alive():
+		# Fall back to normal take if lizard already gone.
+		_consume_inv_entry(entry)
+		return
+	_give_pills_to_lizard(entry)
+
+
+func _give_pills_to_lizard(entry: Dictionary) -> void:
+	if not _inv.has(entry):
+		var matched: Dictionary = {}
+		var ok := false
+		for e in _inv:
+			if e.get("slot") == entry.get("slot"):
+				matched = e
+				ok = true
+				break
+		if not ok:
+			return
+		entry = matched
+	_inv.erase(entry)
+	var slot: Control = entry.get("slot") as Control
+	if slot and is_instance_valid(slot):
+		slot.queue_free()
+	_update_held_items_visibility()
+
+	var trapped: bool = bool(entry.get("trapped", false))
+	var roomate := get_node_or_null("/root/Main/Roomate")
+	if roomate and roomate.has_method("give_pills"):
+		roomate.call("give_pills", trapped)
+	if trapped:
+		set_status_message("You gave the bad pills to the pet lizard...")
+	else:
+		set_status_message("The pet lizard zooms on clean pills!")
+
+
 func _on_pills_cancel_pressed() -> void:
 	_pending_inv_entry = {}
 	hide_pills_dialog()
@@ -2340,6 +2554,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
 			_on_leave_yes_pressed()
+			get_viewport().set_input_as_handled()
+		return
+	if _gun_give_dialog_open:
+		if event.keycode == KEY_ESCAPE:
+			_on_gun_give_cancel_pressed()
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+			if _is_pet_lizard_alive():
+				_on_gun_give_lizard_pressed()
+			else:
+				_on_gun_give_cancel_pressed()
 			get_viewport().set_input_as_handled()
 		return
 	if not _pills_dialog_open:
