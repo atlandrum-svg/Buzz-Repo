@@ -65,6 +65,7 @@ var _segs: Array = []
 var _title_label: Label
 var _result_label: Label
 var _dialog_label: Label
+var _start_btn: Button
 var _wheel_host: Control
 var _needle: Control
 var _stage: Control
@@ -239,6 +240,15 @@ func _build_ui() -> void:
 	_style_label(_result_label, 10, Color(1, 1, 1, 1))
 	mid_col.add_child(_result_label)
 
+	_start_btn = Button.new()
+	_start_btn.text = "START"
+	_start_btn.custom_minimum_size = Vector2(140, 32)
+	_start_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_style_start_button(_start_btn)
+	_start_btn.visible = false
+	_start_btn.disabled = true
+	mid_col.add_child(_start_btn)
+
 	# --- Right: dialog ---
 	var right := _make_side_panel("DialogPanel")
 	right.custom_minimum_size = Vector2(DIALOG_W, PANEL_H)
@@ -286,9 +296,50 @@ func _style_label(lab: Label, size: int, color: Color) -> void:
 	lab.add_theme_color_override("font_color", color)
 
 
+func _style_start_button(btn: Button) -> void:
+	if _pixel_font:
+		btn.add_theme_font_override("font", _pixel_font)
+	btn.add_theme_font_size_override("font_size", 11)
+	btn.add_theme_color_override("font_color", Color(0.08, 0.06, 0.04, 1.0))
+	btn.add_theme_color_override("font_hover_color", Color(0.05, 0.04, 0.02, 1.0))
+	btn.add_theme_color_override("font_pressed_color", Color(0.12, 0.08, 0.04, 1.0))
+	btn.add_theme_color_override("font_disabled_color", Color(0.35, 0.3, 0.22, 0.7))
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = HUD_BORDER
+	normal.border_color = Color(0.55, 0.4, 0.12, 1.0)
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(4)
+	normal.set_content_margin_all(8)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(1.0, 0.88, 0.4, 1.0)
+	var pressed := normal.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color(0.75, 0.58, 0.18, 1.0)
+	var disabled := normal.duplicate() as StyleBoxFlat
+	disabled.bg_color = Color(0.35, 0.3, 0.2, 0.75)
+	btn.add_theme_stylebox_override("normal", normal)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", pressed)
+	btn.add_theme_stylebox_override("disabled", disabled)
+	btn.add_theme_stylebox_override("focus", hover)
+
+
 func _set_dialog(text: String) -> void:
 	if _dialog_label:
 		_dialog_label.text = text
+
+
+## Shows START and waits until the player presses it (so they can read first).
+func _wait_for_start(prompt: String = "Press START when ready.") -> void:
+	if _start_btn == null:
+		return
+	if _result_label:
+		_result_label.text = prompt
+	_start_btn.visible = true
+	_start_btn.disabled = false
+	_start_btn.grab_focus()
+	await _start_btn.pressed
+	_start_btn.disabled = true
+	_start_btn.visible = false
 
 
 func _weights_summary() -> String:
@@ -645,8 +696,12 @@ func show_and_spin(title: String = "FATE WHEEL", effects: Array = []) -> Diction
 	if _title_label:
 		_title_label.text = title
 	if _result_label:
-		_result_label.text = "Loading stock wheel..."
-	_set_dialog("Stock fate wheel loaded: equal chance for Attack, Smooze, and Seduce.\n\nBuffs will apply next, then debuffs.")
+		_result_label.text = "Read the panel, then press START."
+	_set_dialog(
+		"Stock fate wheel loaded: equal chance for Attack, Smooze, and Seduce.\n\n"
+		+ "Buffs apply next, then debuffs, then the wheel spins.\n\n"
+		+ "Read this, then press START when you're ready."
+	)
 	_populate_pending_icons(effects)
 	_refresh_legend()
 
@@ -655,8 +710,8 @@ func show_and_spin(title: String = "FATE WHEEL", effects: Array = []) -> Diction
 	await get_tree().process_frame
 	_refresh_legend()
 
-	# Pause so stock wheel is readable.
-	await get_tree().create_timer(0.85).timeout
+	# Player gates the sequence so they can read first.
+	await _wait_for_start("Press START when ready.")
 
 	var split: Dictionary = _split_effects(effects)
 	var buffs: Array = split["buffs"]
@@ -705,10 +760,12 @@ func show_and_spin(title: String = "FATE WHEEL", effects: Array = []) -> Diction
 		_refresh_legend()
 		await get_tree().create_timer(1.5).timeout
 
-	_set_dialog("All conditions applied. Spinning the fate wheel...\n\n%s" % _weights_summary())
+	_set_dialog("All conditions applied.\n\n%s\n\nPress START to spin." % _weights_summary())
+	await _wait_for_start("Press START to spin.")
+
+	_set_dialog("Spinning the fate wheel...\n\n%s" % _weights_summary())
 	if _result_label:
 		_result_label.text = "Spinning..."
-	await get_tree().create_timer(0.5).timeout
 
 	_spinning = true
 	var landed: int = await _run_spin()

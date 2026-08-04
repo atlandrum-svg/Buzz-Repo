@@ -90,20 +90,25 @@ func _eject_pipe_bomb() -> void:
 	if turn_manager and turn_manager.has_method("mark_pipe_bomb_detonated"):
 		turn_manager.mark_pipe_bomb_detonated()
 	# Blast FX + physics cartwheel knockback away from bomb (bounce on walls)
-	_gib_roomate()
+	_gib_roomate(boom_pos)
 	_play_explosion_at(boom_pos)
 	await player2_body.play_blast_cartwheel(boom_pos)
 
 
-## Swap roommate NPC to exploded sprite the instant the blast FX starts.
-func _gib_roomate() -> void:
+## Lizard remnant + green chunks flung away from boom_pos.
+func _gib_roomate(boom_pos: Vector2) -> void:
 	var roomate := get_node_or_null("/root/Main/Roomate") as Sprite2D
 	if roomate == null:
 		return
+	if roomate.has_method("gib_from_blast"):
+		roomate.gib_from_blast(boom_pos)
+		return
+	# Fallback: old roommate exploded art.
+	if roomate.has_method("stop_for_gib"):
+		roomate.stop_for_gib()
 	var tex: Texture2D = load("res://roomate_exploded.png") as Texture2D
 	if tex == null:
 		return
-	# Single 66×65 cell — same size as one walk-sheet frame (hframes/vframes=1).
 	roomate.texture = tex
 	roomate.hframes = 1
 	roomate.vframes = 1
