@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3 uid="uid://dpilh3wmlh162"]
+
+[ext_resource type="Script" uid="uid://b2pcxf71jfeko" path="res://player_body.gd" id="1_5pxne"]
+[ext_resource type="Texture2D" uid="uid://do4rbv3p46vs" path="res://julian assange sprite sheet.png" id="2_7k5wa"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_kpjcp"]
+size = Vector2(34.5, 47)
+
+[node name="Player1" type="Node2D"]
+
+[node name="Player1Body" type="CharacterBody2D" parent="."]
+script = ExtResource("1_5pxne")
+
+[node name="Sprite2D" type="Sprite2D" parent="Player1Body"]
+texture = ExtResource("2_7k5wa")
+hframes = 4
+vframes = 4
+
+[node name="Camera2D" type="Camera2D" parent="Player1Body"]
+zoom = Vector2(2, 2)
+position_smoothing_enabled = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player1Body"]
+position = Vector2(-0.25, 5.5)
+shape = SubResource("RectangleShape2D_kpjcp")
