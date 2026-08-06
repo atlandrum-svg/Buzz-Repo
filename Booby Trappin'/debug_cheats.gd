@@ -46,6 +46,11 @@ func _register_cheats() -> void:
 	_add("reset_anx", KEY_F10, "Reset anxiety to the round-start baseline", "cheat_reset_anxiety")
 	_add("gun_fail", KEY_F11, "Gun + fail attack → shoot choice", "cheat_gun_fail_then_offer")
 	_add("gun_fent", KEY_F12, "Fent + gun leg shot / crawl", "cheat_gun_fent_leg")
+	# Level 3. F1-F12 are spoken for (F3 is the dev panel), so these sit on the
+	# number row. Both jump straight into the lob minigame with seeded traits.
+	_add("date", KEY_0, "Jump to the date — lob round, mid anxiety", "cheat_jump_to_date")
+	_add("date_max", KEY_9, "Jump to the date — lob round, maxed anxiety", "cheat_jump_to_date_wrecked")
+	_add("bout", KEY_8, "Jump to the date — straight into round 2, the bout", "cheat_jump_to_bout")
 
 
 func _add(id: String, keycode: Key, label: String, method: String) -> void:

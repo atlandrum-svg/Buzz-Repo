@@ -1,6 +1,6 @@
 extends Area2D
 
-@onready var label = $/root/Main/Chest/Label
+@onready var label = $/root/Main/Level/Chest/Label
 @onready var player1_body = $/root/Main/Player1/Player1Body
 @onready var player2_body = $/root/Main/Player2/Player2Body
 @onready var turn_manager = $/root/Main/TurnManager

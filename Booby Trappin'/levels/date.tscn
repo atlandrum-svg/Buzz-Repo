@@ -1,0 +1,59 @@
+[gd_scene format=3 uid="uid://tl_date_level_3"]
+
+; Level 3 — the date venue.
+;
+; Deliberately bare. Round 3 has no trap phase and no walkable objectives yet:
+; TurnManager loads this, parks Player 2 in it, and immediately opens the trait
+; lob minigame (trait_lob_minigame.gd) on the HUD layer, which covers the whole
+; screen. This scene only has to be a plausible dim room behind that overlay and
+; to keep Player 2 inside walls while it plays.
+;
+; Dress it like levels/office.tscn when the date gets walkable content: add a
+; Background Sprite2D with painted venue art, tables as StaticBody2D + Area2D
+; props, and the date NPC.
+
+[sub_resource type="RectangleShape2D" id="wall_lr"]
+size = Vector2(46.625, 761.5)
+
+[sub_resource type="RectangleShape2D" id="wall_tb"]
+size = Vector2(313.49933, 490.25015)
+
+[node name="Level" type="Node2D"]
+
+[node name="Background" type="ColorRect" parent="."]
+z_index = -1
+offset_left = -260.0
+offset_top = -330.0
+offset_right = 266.0
+offset_bottom = 440.0
+color = Color(0.16, 0.09, 0.15, 1)
+mouse_filter = 2
+
+[node name="Floor" type="ColorRect" parent="."]
+z_index = -1
+offset_left = -260.0
+offset_top = 150.0
+offset_right = 266.0
+offset_bottom = 440.0
+color = Color(0.29, 0.17, 0.16, 1)
+mouse_filter = 2
+
+[node name="RoomBoundaries" type="StaticBody2D" parent="."]
+
+[node name="LeftWall" type="CollisionShape2D" parent="RoomBoundaries"]
+position = Vector2(-236, -5)
+shape = SubResource("wall_lr")
+
+[node name="RightWall" type="CollisionShape2D" parent="RoomBoundaries"]
+position = Vector2(242, 50)
+shape = SubResource("wall_lr")
+
+[node name="TopWall" type="CollisionShape2D" parent="RoomBoundaries"]
+position = Vector2(29.875347, -299.74963)
+rotation = 1.5708
+shape = SubResource("wall_tb")
+
+[node name="BottomWall" type="CollisionShape2D" parent="RoomBoundaries"]
+position = Vector2(23, 412)
+rotation = -1.5708
+shape = SubResource("wall_tb")

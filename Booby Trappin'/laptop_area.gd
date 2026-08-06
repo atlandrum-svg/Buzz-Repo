@@ -3,7 +3,7 @@ extends Area2D
 const UsableShimmer = preload("res://usable_shimmer.gd")
 const ItemPrompts = preload("res://item_prompts.gd")
 
-@onready var label = $/root/Main/LaptopCutOut/Label
+@onready var label = $/root/Main/Level/LaptopCutOut/Label
 @onready var player1_body = $/root/Main/Player1/Player1Body
 @onready var player2_body = $/root/Main/Player2/Player2Body
 @onready var turn_manager = $/root/Main/TurnManager

@@ -179,7 +179,7 @@ func _rebuild_hover_rows() -> void:
 		c.queue_free()
 
 	var head := Label.new()
-	head.text = "WHAT'S EATING YOU"
+	head.text = "TRAITS"
 	_style(head, 8, Color(1.0, 0.72, 0.58, 1.0))
 	_hover_rows.add_child(head)
 
@@ -189,7 +189,7 @@ func _rebuild_hover_rows() -> void:
 
 	if listing.is_empty():
 		var none := Label.new()
-		none.text = "Nothing yet. Baseline dread only."
+		none.text = "No traits yet. Baseline dread only."
 		none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		none.custom_minimum_size = Vector2(180, 0)
 		_style(none, 8, Color(0.72, 0.66, 0.60, 0.95))

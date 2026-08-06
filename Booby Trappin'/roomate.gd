@@ -53,6 +53,12 @@ var _in_pack: bool = false
 var _on_clean_pills: bool = false
 var _demon_possessed: bool = false
 var _follow_target: Node2D = null
+## Scripted walk (e.g. toward office monkey). Null = normal roam.
+var _script_walk_target: Node2D = null
+var _script_walk_done: bool = false
+const SCRIPT_WALK_SPEED := 52.0
+const SCRIPT_BESIDE_DIST := 28.0
+const SCRIPT_ARRIVE := 6.0
 
 
 func _ready() -> void:
@@ -98,6 +104,14 @@ func is_demon_possessed() -> bool:
 	return _demon_possessed
 
 
+## Peel off from following the player and go stand next to something else
+## instead (spotting an NPC and dragging them to a 4th-dimensional hell).
+func redirect_follow(target: Node2D) -> void:
+	if not is_alive() or not _demon_possessed or _in_pack:
+		return
+	_follow_target = target
+
+
 ## Clean pills → 5× roam (zippy). Booby-trapped → die upside-down, frozen.
 func give_pills(trapped: bool) -> void:
 	if not is_alive():
@@ -109,9 +123,44 @@ func give_pills(trapped: bool) -> void:
 		_speed_mult = PILL_SPEED_MULT
 
 
+## Upside-down death pose (pills, monkey fight, etc.).
+func die_upside_down(_cause: String = "fight") -> void:
+	if _gibbed:
+		return
+	_script_walk_target = null
+	_script_walk_done = true
+	# If it was in the pack, dump it onto the floor for the corpse pose.
+	if _in_pack:
+		_in_pack = false
+		visible = true
+	if _dead_from_pills:
+		set_process(false)
+		flip_v = true
+		return
+	_die_from_pills()
+
+
+## Walk to stand next to another actor (monkey fight). Awaits arrival.
+func walk_to_beside(target: Node2D) -> void:
+	if not is_alive() or target == null or not is_instance_valid(target):
+		return
+	if _in_pack:
+		return
+	_script_walk_target = target
+	_script_walk_done = false
+	_pause_t = 0.0
+	set_process(true)
+	while not _script_walk_done and is_instance_valid(self) and is_alive():
+		if _script_walk_target == null or not is_instance_valid(_script_walk_target):
+			break
+		await get_tree().process_frame
+	_script_walk_target = null
+
+
 ## Stashed in the fanny pack. Everything it is carrying comes with it.
+## A demon-possessed lizard refuses outright — it does not go in the bag.
 func enter_fannypack() -> void:
-	if not is_alive() or _in_pack:
+	if not is_alive() or _in_pack or _demon_possessed:
 		return
 	_in_pack = true
 	visible = false
@@ -139,6 +188,8 @@ func exit_fannypack(at: Vector2 = Vector2.ZERO) -> void:
 ## The demon jumps ship into the lizard. Purple, and considerably less calm.
 ## Pass the player body and it stops roaming and starts following them — which
 ## is what it does whenever it did not immediately shoot someone.
+## It does not tolerate being zipped away — if it was in the fanny pack when
+## this happens, it forces its way back out into the open first.
 func become_possessed(follow_target: Node2D = null) -> void:
 	if not is_alive():
 		return
@@ -146,8 +197,52 @@ func become_possessed(follow_target: Node2D = null) -> void:
 	modulate = Color(0.82, 0.52, 1.0, 1.0)
 	_speed_mult = maxf(_speed_mult, 2.5)
 	_follow_target = follow_target
-	if not _in_pack:
-		set_process(true)
+	if _in_pack:
+		_in_pack = false
+		visible = true
+		if follow_target != null and is_instance_valid(follow_target):
+			global_position = follow_target.global_position + Vector2(18.0, 10.0)
+	set_process(true)
+
+
+func _process_script_walk(delta: float) -> void:
+	var anchor: Vector2 = _script_walk_target.global_position
+	var side: float = SCRIPT_BESIDE_DIST
+	if global_position.x < anchor.x:
+		side = -SCRIPT_BESIDE_DIST
+	var goal: Vector2 = Vector2(anchor.x + side, anchor.y)
+	var to: Vector2 = goal - global_position
+	var dist: float = to.length()
+	if dist <= SCRIPT_ARRIVE:
+		global_position = goal
+		_script_walk_done = true
+		_anim_frame = 0
+		_apply_frame()
+		return
+	var dir: Vector2 = to.normalized()
+	_facing_row = _row_for_dir(dir)
+	var step: float = minf(SCRIPT_WALK_SPEED * delta, dist)
+	var next: Vector2 = global_position + dir * step
+	# Soft bounds (office is wider than bedroom roam box).
+	next.x = clampf(next.x, -220.0, 220.0)
+	next.y = clampf(next.y, -160.0, 250.0)
+	if _blocked_at(next):
+		# Axis slide past blockers.
+		var nx: Vector2 = Vector2(global_position.x + dir.x * step, global_position.y)
+		var ny: Vector2 = Vector2(global_position.x, global_position.y + dir.y * step)
+		if not _blocked_at(nx):
+			next = nx
+		elif not _blocked_at(ny):
+			next = ny
+		else:
+			next = global_position
+			_script_walk_done = true
+	global_position = next
+	_anim_t += delta
+	if _anim_t >= ANIM_SPEED:
+		_anim_t = 0.0
+		_anim_frame = (_anim_frame + 1) % HFRAMES
+	_apply_frame()
 
 
 ## Walks straight at the player, ignoring the roam bounds it normally respects.
@@ -395,6 +490,9 @@ func _process(delta: float) -> void:
 		return
 	if _dead_from_pills:
 		_corpse_gun_tick()
+		return
+	if _script_walk_target != null and is_instance_valid(_script_walk_target):
+		_process_script_walk(delta)
 		return
 	if _demon_possessed and _follow_target != null and is_instance_valid(_follow_target):
 		_process_follow(delta)

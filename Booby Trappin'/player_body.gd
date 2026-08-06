@@ -35,6 +35,12 @@ const MAX_BLAST_SPEED := 1400.0
 var _blast_active := false
 var _blast_time := 0.0
 var _blast_frame_t := 0.0
+## Debounces the anxiety "bump" report — without this, resting against a wall
+## while sliding would fire a bump every single physics frame instead of once
+## per distinct hit.
+const BUMP_ANXIETY_COOLDOWN := 0.12
+var _bump_cooldown_t := 0.0
+var _turn_manager: Node = null
 var _cart_prev_tex: Texture2D
 var _cart_prev_h: int = 4
 var _cart_prev_v: int = 4
@@ -249,17 +255,28 @@ func end_meditate_pose() -> void:
 
 ## Knockback away from blast, cartwheel anim, bounce off walls (collision mask).
 func play_blast_cartwheel(from_pos: Vector2) -> void:
-	if sprite == null or _blast_active:
-		return
-	var tex: Texture2D = load("res://p2_cartwheel.png")
-	if tex == null:
-		return
-
 	var dir: Vector2 = global_position - from_pos
 	if dir.length_squared() < 16.0:
 		dir = Vector2.RIGHT.rotated(randf() * TAU)
 	else:
 		dir = dir.normalized()
+	await _run_cartwheel_blast(dir)
+
+
+## Same knockback/cartwheel/bounce, but flung in an explicit direction instead
+## of away from a blast origin (e.g. the office floor trap's chosen direction).
+func play_directional_cartwheel(dir: Vector2) -> void:
+	if dir.length_squared() < 0.0001:
+		dir = Vector2.UP
+	await _run_cartwheel_blast(dir.normalized())
+
+
+func _run_cartwheel_blast(dir: Vector2) -> void:
+	if sprite == null or _blast_active:
+		return
+	var tex: Texture2D = load("res://p2_cartwheel.png")
+	if tex == null:
+		return
 
 	movement_locked = true
 	_blast_active = true
@@ -282,6 +299,16 @@ func play_blast_cartwheel(from_pos: Vector2) -> void:
 	_end_blast_visual()
 	_blast_active = false
 	velocity = Vector2.ZERO
+
+
+## Tells TurnManager we bounced off something mid-flight (pipe bomb, monkey
+## burst, floor trap fling — anything routed through _run_cartwheel_blast) so
+## it can add the stacking "Bumped Around" anxiety hit.
+func _report_flight_bump() -> void:
+	if _turn_manager == null or not is_instance_valid(_turn_manager):
+		_turn_manager = get_node_or_null("/root/Main/TurnManager")
+	if _turn_manager and _turn_manager.has_method("register_flight_bump"):
+		_turn_manager.call("register_flight_bump")
 
 
 func _end_blast_visual() -> void:
@@ -312,6 +339,8 @@ func _physics_process(delta):
 		if velocity.length() > speed_cap:
 			velocity = velocity.normalized() * speed_cap
 		move_and_slide()
+		if _bump_cooldown_t > 0.0:
+			_bump_cooldown_t -= delta
 		# Bounce off walls / furniture — each hit goes FARTHER early; taper gain near end
 		for i in get_slide_collision_count():
 			var col: KinematicCollision2D = get_slide_collision(i)
@@ -325,6 +354,9 @@ func _physics_process(delta):
 			if bounced.length_squared() < 1.0:
 				bounced = n.rotated(randf_range(-0.8, 0.8))
 			velocity = bounced.normalized() * spd
+		if get_slide_collision_count() > 0 and _bump_cooldown_t <= 0.0:
+			_bump_cooldown_t = BUMP_ANXIETY_COOLDOWN
+			_report_flight_bump()
 		# Spin frames; slow spin slightly as speed dies
 		_blast_frame_t += delta
 		var spin_fps: float = lerpf(CARTWHEEL_FPS, 8.0, ease_out)

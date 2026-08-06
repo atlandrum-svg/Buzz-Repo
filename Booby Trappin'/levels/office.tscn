@@ -1,0 +1,181 @@
+[gd_scene format=3 uid="uid://bmhwx3evfd67w"]
+
+[ext_resource type="Texture2D" uid="uid://hlfctpnqpmik" path="res://office-worker-sheet.png" id="7_x3xdq"]
+[ext_resource type="Texture2D" uid="uid://dn1isvpl0tkem" path="res://office_cleaned.png" id="bg_office"]
+[ext_resource type="Script" uid="uid://rdl0us144fma" path="res://filing_cabinet_area.gd" id="script_cabinet"]
+[ext_resource type="Script" uid="uid://r8rrsutw8g1h" path="res://office_prop_area.gd" id="script_prop"]
+[ext_resource type="Script" path="res://office_bush_area.gd" id="script_bush"]
+[ext_resource type="Script" uid="uid://dod00twutdsvu" path="res://office_worker_npc.gd" id="script_worker"]
+[ext_resource type="Texture2D" uid="uid://b4wg5scwbuffk" path="res://office_bush.png" id="tex_bush"]
+[ext_resource type="Texture2D" uid="uid://iem8c7h0enmi" path="res://filing_cabinet.png" id="tex_cabinet"]
+[ext_resource type="Texture2D" uid="uid://c4nfs6hnjtrob" path="res://water_cooler.png" id="tex_cooler"]
+
+[sub_resource type="RectangleShape2D" id="wall_lr"]
+size = Vector2(46.625, 761.5)
+
+[sub_resource type="RectangleShape2D" id="wall_tb"]
+size = Vector2(313.49933, 490.25015)
+
+[sub_resource type="RectangleShape2D" id="area_cabinet"]
+size = Vector2(329.83038, 402.69434)
+
+[sub_resource type="RectangleShape2D" id="body_cabinet"]
+size = Vector2(214.76935, 152.35426)
+
+[sub_resource type="RectangleShape2D" id="area_cooler"]
+size = Vector2(191.23059, 300.59988)
+
+[sub_resource type="RectangleShape2D" id="body_cooler"]
+size = Vector2(144.97496, 199.31079)
+
+[sub_resource type="RectangleShape2D" id="area_bush"]
+size = Vector2(310.65646, 342.97275)
+
+[sub_resource type="RectangleShape2D" id="body_bush"]
+size = Vector2(50, 52)
+
+[node name="Level" type="Node2D" unique_id=474940494]
+
+[node name="Background" type="Sprite2D" parent="." unique_id=1950704190]
+z_index = -1
+position = Vector2(-4, -5)
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("bg_office")
+
+[node name="RoomBoundaries" type="StaticBody2D" parent="." unique_id=1793437319]
+
+[node name="LeftWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=2037681554]
+position = Vector2(-236, -5)
+shape = SubResource("wall_lr")
+
+[node name="RightWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1672414068]
+position = Vector2(242, 50)
+shape = SubResource("wall_lr")
+
+[node name="TopWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1427160246]
+position = Vector2(29.875347, -299.74963)
+rotation = 1.5708
+shape = SubResource("wall_tb")
+
+[node name="BottomWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=812270967]
+position = Vector2(23, 412)
+rotation = -1.5708
+shape = SubResource("wall_tb")
+
+[node name="FilingCabinet" type="Sprite2D" parent="." unique_id=1437326663]
+z_index = 2
+position = Vector2(-178, 22)
+scale = Vector2(0.24826129, 0.27067673)
+texture = ExtResource("tex_cabinet")
+
+[node name="FilingCabinetArea" type="Area2D" parent="FilingCabinet" unique_id=1321280430]
+collision_layer = 0
+monitorable = false
+script = ExtResource("script_cabinet")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="FilingCabinet/FilingCabinetArea" unique_id=82963749]
+position = Vector2(40.51355, 5.5416565)
+scale = Vector2(0.9999998, 1.0000002)
+shape = SubResource("area_cabinet")
+
+[node name="Label" type="Label" parent="FilingCabinet" unique_id=1099738810]
+offset_left = -250.0
+offset_top = -220.0
+offset_right = 250.0
+offset_bottom = -140.0
+theme_override_font_sizes/font_size = 48
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
+[node name="Body" type="StaticBody2D" parent="FilingCabinet" unique_id=1851503305]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="FilingCabinet/Body" unique_id=1837447218]
+position = Vector2(-10.712341, -39.232704)
+scale = Vector2(0.9999999, 1.0000002)
+shape = SubResource("body_cabinet")
+
+[node name="WaterCooler" type="Sprite2D" parent="." unique_id=707845510]
+z_index = 2
+position = Vector2(182.00002, -85)
+scale = Vector2(0.3172965, 0.30605468)
+texture = ExtResource("tex_cooler")
+
+[node name="WaterCoolerArea" type="Area2D" parent="WaterCooler" unique_id=473210202]
+collision_layer = 0
+monitorable = false
+script = ExtResource("script_prop")
+prop_name = "Water Cooler"
+clean_message = "You fill a paper cup. The water tastes faintly of office."
+trap_message = "The cooler hisses and sprays everywhere. Your shirt is ruined."
+trap_anxiety_id = "spilled_spaghetti"
+clean_anxiety_id = "zen"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WaterCooler/WaterCoolerArea" unique_id=1681252125]
+position = Vector2(-20.994995, 19.60434)
+scale = Vector2(0.9999998, 1)
+shape = SubResource("area_cooler")
+
+[node name="Label" type="Label" parent="WaterCooler" unique_id=2134858851]
+offset_left = -250.0
+offset_top = -220.0
+offset_right = 250.0
+offset_bottom = -140.0
+theme_override_font_sizes/font_size = 48
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
+[node name="Body" type="StaticBody2D" parent="WaterCooler" unique_id=1758521440]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WaterCooler/Body" unique_id=1827551767]
+position = Vector2(6.3031006, -34.307617)
+scale = Vector2(0.9999998, 1)
+shape = SubResource("body_cooler")
+
+[node name="OfficeBush" type="Sprite2D" parent="." unique_id=1294609595]
+z_index = 2
+position = Vector2(-171, 211)
+scale = Vector2(0.27309325, 0.2740741)
+texture = ExtResource("tex_bush")
+
+[node name="OfficeBushArea" type="Area2D" parent="OfficeBush" unique_id=727052419]
+collision_layer = 0
+monitorable = false
+script = ExtResource("script_bush")
+prop_name = "Office Bush"
+clean_message = "You poke the bush. Just plastic leaves and dust."
+trap_message = "You have been bitten by the spider. You suddenly have a desire to hide in a dark, wet place."
+trap_anxiety_id = "arachnophobia"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="OfficeBush/OfficeBushArea" unique_id=773690176]
+position = Vector2(7.323517, -14.5946045)
+scale = Vector2(1.0000006, 1.0000006)
+shape = SubResource("area_bush")
+
+[node name="Label" type="Label" parent="OfficeBush" unique_id=776720678]
+offset_left = -250.0
+offset_top = -220.0
+offset_right = 250.0
+offset_bottom = -140.0
+theme_override_font_sizes/font_size = 48
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
+[node name="Body" type="StaticBody2D" parent="OfficeBush" unique_id=834380436]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="OfficeBush/Body" unique_id=863284716]
+position = Vector2(-3.6617584, 3.6486588)
+shape = SubResource("body_bush")
+
+[node name="OfficeWorkerWalk" type="Sprite2D" parent="." unique_id=814551025]
+z_index = 6
+position = Vector2(67, -65)
+scale = Vector2(1.2, 1.2)
+texture = ExtResource("7_x3xdq")
+hframes = 4
+vframes = 4
+script = ExtResource("script_worker")
+walk_enabled = false
+clean_message = "The office worker has given you some interview questions ahead of time. He is chill like that."
+trap_message = "The office worker is ornery on account of blowing all his Claude tokens for the week. He baits you into a conversation about race, which you fumble heavily."
+clean_anxiety_id = "soft_skills"
+trap_anxiety_id = "incel_presenting"

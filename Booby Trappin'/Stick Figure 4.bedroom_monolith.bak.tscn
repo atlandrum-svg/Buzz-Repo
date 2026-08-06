@@ -1,0 +1,464 @@
+[gd_scene format=3 uid="uid://blp7hx7eu8b0h"]
+
+[ext_resource type="Texture2D" uid="uid://bh0susjkh0csc" path="res://Room Cleaned 1.png" id="2_x5ca5"]
+[ext_resource type="Texture2D" uid="uid://capo5g34o62i6" path="res://Plant Cutout 2.png" id="5_6lkpy"]
+[ext_resource type="Script" uid="uid://cund6evw6ao8e" path="res://plant_area.gd" id="6_hd4p0"]
+[ext_resource type="Texture2D" uid="uid://ca7aj74krgvjc" path="res://PlantMonster.png" id="6_j4wro"]
+[ext_resource type="Texture2D" uid="uid://co037lcngrdmp" path="res://Laptop Cut Out.png" id="8_3dibl"]
+[ext_resource type="PackedScene" uid="uid://dpilh3wmlh162" path="res://Player1.tscn" id="9_60uda"]
+[ext_resource type="PackedScene" uid="uid://bgmyv8vbgr0sq" path="res://Player2.tscn" id="10_n3imp"]
+[ext_resource type="Script" uid="uid://yo5ujpw8dw0r" path="res://turn_manager.gd" id="11_tq4tc"]
+[ext_resource type="Script" uid="uid://cr1bhnl24athn" path="res://laptop_area.gd" id="12_laptop"]
+[ext_resource type="Texture2D" uid="uid://bfxhxwbf0bmty" path="res://pill_bottle.png" id="13_pill"]
+[ext_resource type="Script" uid="uid://dr4cb5m4qvswv" path="res://pill_bottle_area.gd" id="14_pill_area"]
+[ext_resource type="Texture2D" uid="uid://cfyuvwjq2v1o5" path="res://hat_rack.png" id="16_hat"]
+[ext_resource type="Texture2D" uid="uid://on2friygdp8n" path="res://bookshelf.png" id="17_shelf"]
+[ext_resource type="Texture2D" uid="uid://hxjdqpy8qtmt" path="res://dresser.png" id="18_dresser"]
+[ext_resource type="Script" uid="uid://cjsdg1fpt47n1" path="res://dresser_area.gd" id="19_dresser_area"]
+[ext_resource type="Texture2D" uid="uid://m6xb53ilkdk2" path="res://meditation_pillow.png" id="20_pillow"]
+[ext_resource type="Script" uid="uid://ccwow8ac1bk1p" path="res://meditation_pillow_area.gd" id="21_pillow_area"]
+[ext_resource type="Texture2D" uid="uid://csjln8geqcpvi" path="res://skitterscale-sheet.png" id="22_roomate"]
+[ext_resource type="Script" uid="uid://chfcjexmot4nu" path="res://roomate.gd" id="23_roomate_script"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_3dibl"]
+radius = 284.92386
+
+[sub_resource type="Animation" id="Animation_uxqh3"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_fj6nu"]
+resource_name = "monster"
+length = 1.8
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+"update": 1,
+"values": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+}
+
+[sub_resource type="Animation" id="Animation_dt1fl"]
+resource_name = "normal"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1.03333),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [0, 0]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_gfjqc"]
+_data = {
+&"RESET": SubResource("Animation_uxqh3"),
+&"monster": SubResource("Animation_fj6nu"),
+&"normal": SubResource("Animation_dt1fl")
+}
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_0aaab"]
+size = Vector2(17.25, 469)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_6lkpy"]
+size = Vector2(19, 433)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_4qf0h"]
+size = Vector2(32.25, 467.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hd4p0"]
+size = Vector2(23.5, 448)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_3dibl"]
+size = Vector2(49.875, 42.75)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_qd1t5"]
+size = Vector2(68, 119)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_qjum0"]
+size = Vector2(54, 96)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_j4wro"]
+size = Vector2(121.75, 166.75)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_60uda"]
+size = Vector2(30, 32)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_laptop"]
+radius = 502.47
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pill"]
+radius = 200.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_dresser"]
+radius = 447.53693
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dresser_body"]
+size = Vector2(335.03317, 154.27577)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lizard_only"]
+size = Vector2(132.5, 17.375)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lizard_only_2"]
+size = Vector2(57, 35.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lizard_only_3"]
+size = Vector2(71, 71)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lizard_only_4"]
+size = Vector2(138, 171)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lizard_only_5"]
+size = Vector2(51, 85)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lizard_only_6"]
+size = Vector2(236, 148)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lizard_only_7"]
+size = Vector2(72, 144)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hat_rack"]
+size = Vector2(77.07527, 159.95071)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bookshelf"]
+size = Vector2(84.60794, 57.39572)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pillow"]
+radius = 830.38184
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pillow_body"]
+size = Vector2(273.11768, 208.83751)
+
+[node name="Main" type="Node2D" unique_id=287502502]
+
+[node name="Background" type="Sprite2D" parent="." unique_id=503875675]
+z_index = -1
+position = Vector2(-4, -5)
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("2_x5ca5")
+
+[node name="Plant" type="Sprite2D" parent="." unique_id=1207824762]
+z_index = 2
+position = Vector2(168, -249)
+scale = Vector2(0.31759778, 0.3114173)
+texture = ExtResource("6_j4wro")
+offset = Vector2(0, 80)
+hframes = 10
+
+[node name="PlantArea" type="Area2D" parent="Plant" unique_id=1394563669]
+collision_layer = 0
+monitorable = false
+script = ExtResource("6_hd4p0")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Plant/PlantArea" unique_id=1762406847]
+position = Vector2(3.1486282, 256.88998)
+shape = SubResource("CircleShape2D_3dibl")
+
+[node name="Label" type="Label" parent="Plant" unique_id=928484779]
+offset_left = -204.66138
+offset_top = 362.85718
+offset_right = 296.33862
+offset_bottom = 436.71304
+theme_override_font_sizes/font_size = 44
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Plant" unique_id=95277960]
+libraries/ = SubResource("AnimationLibrary_gfjqc")
+autoplay = &"normal"
+
+[node name="Lamp" type="Sprite2D" parent="." unique_id=1047061987]
+z_index = 8
+position = Vector2(168, 63)
+scale = Vector2(0.448795, 0.399177)
+texture = ExtResource("5_6lkpy")
+
+[node name="RoomBoundaries" type="StaticBody2D" parent="." unique_id=2077535813]
+
+[node name="LeftWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=2110388181]
+position = Vector2(-226.625, 35.5)
+shape = SubResource("RectangleShape2D_0aaab")
+
+[node name="BottomWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=2101951231]
+position = Vector2(0.5, 266.5)
+rotation = -1.5708
+shape = SubResource("RectangleShape2D_6lkpy")
+
+[node name="TopWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=426524894]
+position = Vector2(14, -180)
+rotation = 1.5708
+shape = SubResource("RectangleShape2D_4qf0h")
+
+[node name="RightWall" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1259907155]
+position = Vector2(219.25, 51)
+shape = SubResource("RectangleShape2D_hd4p0")
+
+[node name="Dresser" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1109785271]
+position = Vector2(168.0625, -153.375)
+shape = SubResource("RectangleShape2D_3dibl")
+
+[node name="Bed" type="CollisionShape2D" parent="RoomBoundaries" unique_id=375256437]
+position = Vector2(78, -122.5)
+shape = SubResource("RectangleShape2D_qd1t5")
+
+[node name="Table" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1997070407]
+position = Vector2(171, 127)
+shape = SubResource("RectangleShape2D_qjum0")
+
+[node name="Stairs" type="CollisionShape2D" parent="RoomBoundaries" unique_id=756451013]
+position = Vector2(-155, 206)
+shape = SubResource("RectangleShape2D_j4wro")
+
+[node name="Chest" type="CollisionShape2D" parent="RoomBoundaries" unique_id=1774009037]
+position = Vector2(80, -48)
+shape = SubResource("RectangleShape2D_60uda")
+
+[node name="Player1" parent="." unique_id=1593737180 instance=ExtResource("9_60uda")]
+z_index = 5
+
+[node name="Player2" parent="." unique_id=2112491496 instance=ExtResource("10_n3imp")]
+z_index = 5
+
+[node name="TurnManager" type="Node" parent="." unique_id=143145237]
+script = ExtResource("11_tq4tc")
+
+[node name="LaptopCutOut" type="Sprite2D" parent="." unique_id=1822903392]
+z_index = 2
+position = Vector2(170, 145)
+scale = Vector2(0.18009868, 0.19322915)
+texture = ExtResource("8_3dibl")
+
+[node name="LaptopArea" type="Area2D" parent="LaptopCutOut" unique_id=261960925]
+collision_layer = 0
+monitorable = false
+script = ExtResource("12_laptop")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LaptopCutOut/LaptopArea" unique_id=447546718]
+shape = SubResource("CircleShape2D_laptop")
+
+[node name="Label" type="Label" parent="LaptopCutOut" unique_id=1531411397]
+offset_left = -250.0
+offset_top = -200.0
+offset_right = 250.0
+offset_bottom = -120.0
+theme_override_font_sizes/font_size = 49
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
+[node name="PillBottle" type="Sprite2D" parent="." unique_id=1661104774]
+z_index = 3
+position = Vector2(-6.0000153, -163)
+scale = Vector2(0.1351563, 0.1390626)
+texture = ExtResource("13_pill")
+
+[node name="PillBottleArea" type="Area2D" parent="PillBottle" unique_id=2015547898]
+collision_layer = 0
+monitorable = false
+script = ExtResource("14_pill_area")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PillBottle/PillBottleArea" unique_id=898735073]
+shape = SubResource("CircleShape2D_pill")
+
+[node name="Label" type="Label" parent="PillBottle" unique_id=1433908048]
+offset_left = -250.0
+offset_top = -200.0
+offset_right = 250.0
+offset_bottom = -120.0
+theme_override_font_sizes/font_size = 48
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
+[node name="DresserProp" type="Sprite2D" parent="." unique_id=1108700908]
+z_index = 2
+position = Vector2(-179, -124.99999)
+scale = Vector2(0.09440029, 0.08311947)
+texture = ExtResource("18_dresser")
+
+[node name="DresserArea" type="Area2D" parent="DresserProp" unique_id=2042611922]
+position = Vector2(-1077.2727, 395.45453)
+collision_layer = 0
+monitorable = false
+script = ExtResource("19_dresser_area")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DresserProp/DresserArea" unique_id=444727010]
+position = Vector2(1058.6974, -486.5281)
+shape = SubResource("CircleShape2D_dresser")
+
+[node name="Body" type="StaticBody2D" parent="DresserProp" unique_id=832295122]
+position = Vector2(-531.8182, 350)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DresserProp/Body" unique_id=580808399]
+position = Vector2(537.10254, -513.1348)
+scale = Vector2(1.0000001, 1)
+shape = SubResource("RectangleShape2D_dresser_body")
+
+[node name="Label" type="Label" parent="DresserProp" unique_id=974974974]
+offset_left = -250.0
+offset_top = -200.0
+offset_right = 251.0
+offset_bottom = -133.0
+theme_override_font_sizes/font_size = 48
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
+[node name="Roomate" type="Sprite2D" parent="." unique_id=2069012598]
+z_index = 4
+position = Vector2(-82, -100)
+scale = Vector2(0.44531253, 0.4765628)
+texture = ExtResource("22_roomate")
+hframes = 4
+vframes = 4
+frame = 4
+script = ExtResource("23_roomate_script")
+
+[node name="Body" type="StaticBody2D" parent="Roomate" unique_id=102727052]
+position = Vector2(-1.6842079, 4.721323)
+
+[node name="LizardOnlyBlocker" type="StaticBody2D" parent="." unique_id=246844776]
+position = Vector2(0, 40)
+collision_layer = 2
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LizardOnlyBlocker" unique_id=130062052]
+position = Vector2(-85, -169)
+shape = SubResource("RectangleShape2D_lizard_only")
+
+[node name="LizardOnlyBlocker2" type="StaticBody2D" parent="." unique_id=759336323]
+position = Vector2(80, 40)
+collision_layer = 2
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LizardOnlyBlocker2" unique_id=616877725]
+position = Vector2(-253, -48)
+shape = SubResource("RectangleShape2D_lizard_only_2")
+
+[node name="LizardOnlyBlocker3" type="StaticBody2D" parent="." unique_id=961444814]
+position = Vector2(-80, 40)
+collision_layer = 2
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LizardOnlyBlocker3" unique_id=1304101342]
+position = Vector2(-94.5, -156.5)
+shape = SubResource("RectangleShape2D_lizard_only_3")
+
+[node name="LizardOnlyBlocker4" type="StaticBody2D" parent="." unique_id=1129648465]
+position = Vector2(0, 100)
+collision_layer = 2
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LizardOnlyBlocker4" unique_id=1915383006]
+position = Vector2(-140, 63.5)
+shape = SubResource("RectangleShape2D_lizard_only_4")
+
+[node name="LizardOnlyBlocker5" type="StaticBody2D" parent="." unique_id=959273686]
+position = Vector2(80, 100)
+collision_layer = 2
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LizardOnlyBlocker5" unique_id=476205428]
+position = Vector2(-138.5, 103)
+shape = SubResource("RectangleShape2D_lizard_only_5")
+
+[node name="LizardOnlyBlocker6" type="StaticBody2D" parent="." unique_id=1703864183]
+position = Vector2(-80, 100)
+collision_layer = 2
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LizardOnlyBlocker6" unique_id=2056408187]
+position = Vector2(163, -171)
+shape = SubResource("RectangleShape2D_lizard_only_6")
+
+[node name="LizardOnlyBlocker7" type="StaticBody2D" parent="." unique_id=305386563]
+position = Vector2(0, 160)
+collision_layer = 2
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LizardOnlyBlocker7" unique_id=1635230075]
+position = Vector2(167, -11)
+shape = SubResource("RectangleShape2D_lizard_only_7")
+
+[node name="HatRack" type="Sprite2D" parent="." unique_id=791289123]
+z_index = 2
+position = Vector2(-64.000015, 213)
+scale = Vector2(0.36328128, 0.34218746)
+texture = ExtResource("16_hat")
+
+[node name="Body" type="StaticBody2D" parent="HatRack" unique_id=543746789]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HatRack/Body" unique_id=1177255422]
+position = Vector2(-2.7526855, 8.767128)
+scale = Vector2(0.99999994, 0.9999999)
+shape = SubResource("RectangleShape2D_hat_rack")
+
+[node name="Bookshelf" type="Sprite2D" parent="." unique_id=1264882725]
+z_index = 2
+position = Vector2(5, -121)
+scale = Vector2(0.40351564, 0.38398436)
+texture = ExtResource("17_shelf")
+
+[node name="Body" type="StaticBody2D" parent="Bookshelf" unique_id=1241991946]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Bookshelf/Body" unique_id=1468056463]
+position = Vector2(2.3039684, -31.302155)
+shape = SubResource("RectangleShape2D_bookshelf")
+
+[node name="MeditationPillow" type="Sprite2D" parent="." unique_id=793576651]
+z_index = 2
+position = Vector2(-175, -7)
+scale = Vector2(0.06039062, 0.05746094)
+texture = ExtResource("20_pillow")
+
+[node name="MeditationPillowArea" type="Area2D" parent="MeditationPillow" unique_id=1990549985]
+collision_layer = 0
+monitorable = false
+script = ExtResource("21_pillow_area")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MeditationPillow/MeditationPillowArea" unique_id=45477227]
+position = Vector2(16.558838, -17.403137)
+shape = SubResource("CircleShape2D_pillow")
+
+[node name="Body" type="StaticBody2D" parent="MeditationPillow" unique_id=1790939666]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MeditationPillow/Body" unique_id=1535376137]
+position = Vector2(-16.558708, -17.403122)
+shape = SubResource("RectangleShape2D_pillow_body")
+
+[node name="Label" type="Label" parent="MeditationPillow" unique_id=1061573371]
+offset_left = -596.11896
+offset_top = -452.48126
+offset_right = 412.01288
+offset_bottom = -188.86078
+theme_override_font_sizes/font_size = 48
+text = "Press E to Booby Trap"
+horizontal_alignment = 1
+
+[connection signal="body_entered" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_entered"]
+[connection signal="body_exited" from="Plant/PlantArea" to="Plant/PlantArea" method="_on_body_exited"]
+[connection signal="body_entered" from="LaptopCutOut/LaptopArea" to="LaptopCutOut/LaptopArea" method="_on_body_entered"]
+[connection signal="body_exited" from="LaptopCutOut/LaptopArea" to="LaptopCutOut/LaptopArea" method="_on_body_exited"]
+[connection signal="body_entered" from="PillBottle/PillBottleArea" to="PillBottle/PillBottleArea" method="_on_body_entered"]
+[connection signal="body_exited" from="PillBottle/PillBottleArea" to="PillBottle/PillBottleArea" method="_on_body_exited"]
+[connection signal="body_entered" from="DresserProp/DresserArea" to="DresserProp/DresserArea" method="_on_body_entered"]
+[connection signal="body_exited" from="DresserProp/DresserArea" to="DresserProp/DresserArea" method="_on_body_exited"]
+[connection signal="body_entered" from="MeditationPillow/MeditationPillowArea" to="MeditationPillow/MeditationPillowArea" method="_on_body_entered"]
+[connection signal="body_exited" from="MeditationPillow/MeditationPillowArea" to="MeditationPillow/MeditationPillowArea" method="_on_body_exited"]

@@ -281,6 +281,14 @@ func is_possessed() -> bool:
 	return _possessed
 
 
+## Peel off from following P2 and go stand next to something else instead
+## (a possessed follower spotting an NPC and dragging them to hell).
+func redirect_follow(target: Node2D) -> void:
+	if _dead or _crawling or not _possessed:
+		return
+	_follow_target = target
+
+
 func become_legless_crawl() -> void:
 	if _dead:
 		return

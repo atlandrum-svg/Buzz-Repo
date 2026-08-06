@@ -351,7 +351,10 @@ func _call_tm(method: String, args: Array = []) -> void:
 
 
 func _lizard() -> Node:
-	return get_node_or_null("/root/Main/Roomate")
+	var liz: Node = get_node_or_null("/root/Main/Roomate")
+	if liz:
+		return liz
+	return get_node_or_null("/root/Main/Level/Roomate")
 
 
 func _lizard_call(method: String, args: Array = []) -> void:

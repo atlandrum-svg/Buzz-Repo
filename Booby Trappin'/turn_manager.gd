@@ -8,6 +8,9 @@ const SpinWheelPopup = preload("res://spin_wheel_popup.gd")
 const AnxietySystem = preload("res://anxiety_system.gd")
 const AnxietyBar = preload("res://anxiety_bar.gd")
 const DevPanel = preload("res://dev_panel.gd")
+const TraitLobMinigame = preload("res://trait_lob_minigame.gd")
+const DateBoutMinigame = preload("res://date_bout_minigame.gd")
+const FloorTrap = preload("res://floor_trap.gd")
 
 @onready var player1 = $/root/Main/Player1/Player1Body
 @onready var player2 = $/root/Main/Player2/Player2Body
@@ -157,6 +160,19 @@ var _inv: Array = []
 var _inv_panel: PanelContainer
 var _inv_grid: HBoxContainer
 
+## Player-1-only floor trap — a single ground-placed item, separate from the
+## furniture booby-trap budget. One per level (bedroom, office), placed via a
+## mouse-follow "ghost" rather than a Yes/No dialog.
+var _p1_inv_panel: PanelContainer
+var _p1_floor_trap_slot: Control
+var _floor_trap_used: bool = false
+## Mouse-follow placement mode: true from the moment the inventory icon is
+## clicked until the ghost is either placed (left click) or cancelled
+## (right click / Esc).
+var _floor_trap_placing: bool = false
+var _floor_trap_ghost: Sprite2D = null
+const FLOOR_TRAP_NPC_HIT_DIST := 40.0
+
 ## Sidebar narrative dialog (both turns; under counter for P1, under full HUD for P2).
 var _status_panel: PanelContainer
 var _status_scroll: ScrollContainer
@@ -183,8 +199,24 @@ var evaluation_active: bool = false
 var leave_available: bool = false
 ## "end_round" = first leave (eval + NPC). "next_map" = after NPC exits → new map/round.
 var leave_intent: String = "end_round"
-## 1 = bedroom, 2 = grey office.
+## 1 = bedroom, 2 = grey office, 3 = the date.
 var round_index: int = 1
+## Round 3 has no trap phase — the whole round is the date minigame.
+const DATE_ROUND := 3
+## Third item used on the office round (DATE_ROUND - 1) drops straight into the
+## date. Trades away the office's end-of-round evaluation and arrival NPC, which
+## are themselves trait sources — flip to false to put that encounter back in
+## the path and reach the date via the stairs instead.
+const SKIP_TO_DATE_ON_LAST_USE := true
+## Round 2 of the date. Her repertoire is exposed_traits(), capped inside the
+## bout itself. Hide everything in round 1 and she has nothing to work with.
+## outcome -> the modifier that lands on you for the rest of the run.
+const DATE_ENDING_MODIFIERS := {
+	"second_date": "second_date",
+	"thinking": "left_on_read",
+	"ghosted": "ghosted",
+	"meltdown": "meltdown",
+}
 const MAP_BEDROOM := "res://Room Cleaned 1.png"
 const MAP_OFFICE := "res://grey-office-1390x1640.png"
 const MSG_LEAVE_NEXT_MAP := "Leave via the stairs when ready."
@@ -210,12 +242,25 @@ var _fireman: Node2D = null
 var _npc_name: String = "Fireman"
 ## Set when the NPC should leave at a run rather than a walk.
 var _npc_flees: bool = false
+## Office filing-cabinet monkey (level 2 trap).
+var _office_monkey: Node2D = null
+var _monkey_dialog: Control = null
+var _monkey_dialog_open: bool = false
 var _spin_wheel: Control = null
+## Level 3 lob minigame. Built lazily on the HUD layer, reused every round.
+var _trait_lob: Control = null
+## Level 3 round 2, the conversation bout. Same lazy-build pattern.
+var _date_bout: Control = null
 ## Dev tools (F3). Null in a build with the panel removed; every read is guarded.
 var _dev: Control = null
 var _eval_dialog: Control
 var _eval_label: Label
 var _eval_title: Label
+var _eval_skip_hint: Label
+## SPACE bar skips the typewriter effect / hold time on message popups
+## (show_evaluation_popup) — set true while it's held, consumed and reset
+## once the skip has been applied.
+var _eval_skip_requested: bool = false
 var _leave_zone: Area2D
 var _leave_arrow: Node2D
 var _leave_dialog: Control
@@ -258,6 +303,7 @@ func _ensure_debug_cheats() -> void:
 
 func _process(delta: float) -> void:
 	_process_pending_murder_timers(delta)
+	_update_floor_trap_ghost()
 	if _leave_arrow == null or not is_instance_valid(_leave_arrow):
 		return
 	if not leave_available or evaluation_active or not _leave_arrow.visible:
@@ -315,7 +361,13 @@ func consume_p2_use() -> bool:
 	_update_hud()
 	if p2_items_used >= P2_USES_MAX:
 		UsableShimmer.set_p2_world_uses_exhausted(true)
-		call_deferred("enable_leave_exit")
+		# The office is the last trap level. Spending the third use there ends
+		# the run's setup entirely, so it goes straight to the date instead of
+		# opening the stairs for another map.
+		if SKIP_TO_DATE_ON_LAST_USE and round_index == DATE_ROUND - 1:
+			call_deferred("_jump_straight_to_date")
+		else:
+			call_deferred("enable_leave_exit")
 	return true
 
 
@@ -580,7 +632,7 @@ func begin_end_of_round_evaluation() -> void:
 	for i in messages.size():
 		await show_evaluation_popup(String(messages[i]))
 		if i < messages.size() - 1:
-			await get_tree().create_timer(EVAL_GAP_BETWEEN_MSGS_SEC).timeout
+			await _eval_wait(EVAL_GAP_BETWEEN_MSGS_SEC)
 
 	_unlock_player_after_evaluation()
 
@@ -770,8 +822,11 @@ func run_fireman_encounter() -> void:
 	# Whatever happened, anyone still standing walks back out the way they came.
 	await _npc_departs(_npc_flees)
 
-	# Encounter finished (NPC gone or left in place). Stairs open again for next map.
-	if round_index < 2:
+	# Encounter finished (NPC gone or left in place). Stairs open again for next
+	# map. Gated on DATE_ROUND, not on 2: the office used to be the last level,
+	# so this hard-stopped there and round 3 was unreachable in normal play.
+	# The date itself never reopens the stairs — it is the end of the run.
+	if round_index < DATE_ROUND:
 		enable_leave_exit("next_map")
 
 
@@ -1254,7 +1309,63 @@ func cheat_reset_anxiety() -> void:
 	_ensure_anxiety_system()
 	anxiety.reset_for_new_run()
 	_refresh_anxiety_bar()
+	_bump_count = 0
 	set_status_message("CHEAT: anxiety reset to %d" % get_anxiety())
+
+
+## Running per-run counter of "flung and bounced off something" impacts
+## (pipe bomb, monkey burst, floor trap, etc.) — each one costs +5 more.
+var _bump_count: int = 0
+
+
+## Called by player_body.gd each time a cartwheel-blast collides with
+## something. AnxietySystem.apply() REPLACES a modifier's amount rather than
+## adding to it, so this tracks a running count and re-applies the single
+## "bumped" modifier at 5x that count each time.
+func register_flight_bump() -> void:
+	_bump_count += 1
+	apply_anxiety("bumped", 5 * _bump_count)
+
+
+## --- Level 3 jump-ins -------------------------------------------------------
+## Both of these skip rounds 1 and 2 entirely so the lob can be tuned on its
+## own. The only difference is how wrecked you arrive, because anxiety is the
+## whole difficulty curve.
+
+## Mid-range run: a believable haul out of the apartment and the office.
+## Lands around 65 anxiety — aim drifts, the meter is quick, still winnable.
+func cheat_jump_to_date() -> void:
+	await _seed_date_run(["cyber_crime", "ptsd", "emasculation", "spilled_spaghetti"],
+		false)
+
+
+## Worst case: everything bad, murder included. Pins anxiety at 100 so the
+## release shake and the runaway charge meter can be felt at full strength.
+func cheat_jump_to_date_wrecked() -> void:
+	await _seed_date_run(["slovenly", "incel_presenting", "cyber_crime",
+		"spurned_lover", "viral_wrong", "ptsd", "emasculation", "mourning",
+		"vishnu_demon", "spilled_spaghetti"], true)
+
+
+## Straight into round 2, skipping the lob. Nothing was obscured, so her
+## repertoire is every negative trait you are carrying.
+func cheat_jump_to_bout() -> void:
+	await _seed_date_run(["slovenly", "cyber_crime", "ptsd", "emasculation",
+		"spurned_lover"], false, true)
+
+
+func _seed_date_run(trait_ids: Array, murderer: bool, skip_lob: bool = false) -> void:
+	_ensure_anxiety_system()
+	for id in trait_ids:
+		apply_anxiety(String(id))
+	if murderer:
+		apply_anxiety("murderer")
+	round_index = DATE_ROUND
+	leave_available = false
+	evaluation_active = false
+	_refresh_anxiety_bar()
+	_update_hud()
+	await _begin_date_round(skip_lob)
 
 
 func cheat_gun_fail_then_offer() -> void:
@@ -1434,13 +1545,41 @@ func _find_inv_entry(item_id: String) -> Dictionary:
 
 ## Global mouse hit-test for held-item slots (does not rely on Button signals).
 func _input(event: InputEvent) -> void:
-	if _pills_dialog_open or _gun_give_dialog_open or _leave_dialog_open or _gun_lesson_dialog_open or _pack_dialog_open:
+	# SPACE skips the currently-showing message popup (typewriter + hold).
+	# Checked first and unconditionally so it works no matter what else is
+	# going on; it only ever does anything while show_evaluation_popup() has
+	# the dialog visible, so it can't eat SPACE for anything else.
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE:
+		if _eval_dialog != null and is_instance_valid(_eval_dialog) and _eval_dialog.visible:
+			_eval_skip_requested = true
+			get_viewport().set_input_as_handled()
+			return
+	if _floor_trap_placing:
+		if event is InputEventMouseButton and event.pressed:
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				_confirm_floor_trap_placement()
+				get_viewport().set_input_as_handled()
+			elif event.button_index == MOUSE_BUTTON_RIGHT:
+				_cancel_floor_trap_placement()
+				get_viewport().set_input_as_handled()
+		elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+			_cancel_floor_trap_placement()
+			get_viewport().set_input_as_handled()
 		return
+	if _pills_dialog_open or _gun_give_dialog_open or _leave_dialog_open or _gun_lesson_dialog_open or _pack_dialog_open or _monkey_dialog_open:
+		return
+	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	if current_turn == "Player1" and _p1_floor_trap_slot != null and is_instance_valid(_p1_floor_trap_slot) \
+			and _p1_floor_trap_slot.is_visible_in_tree():
+		var p1_mouse: Vector2 = get_viewport().get_mouse_position()
+		if _p1_floor_trap_slot.get_global_rect().has_point(p1_mouse):
+			_on_floor_trap_icon_clicked()
+			get_viewport().set_input_as_handled()
+			return
 	if _inv.is_empty():
 		return
 	if current_turn != "Player2" and current_turn != "Evaluation":
-		return
-	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
 		return
 	var mouse: Vector2 = get_viewport().get_mouse_position()
 	for e in _inv.duplicate():
@@ -1525,6 +1664,154 @@ func _get_player2_body() -> Node:
 	return p2
 
 
+func _get_player1_body() -> Node:
+	if is_instance_valid(player1):
+		return player1
+	return get_node_or_null("/root/Main/Player1/Player1Body")
+
+
+## Best-effort lookup of the office worker prop, purely for the "you knocked
+## him over" floor-trap bonus message — walks the current level tree for the
+## node running office_worker_npc.gd rather than relying on a fixed path.
+func _get_office_worker_npc() -> Node:
+	var level: Node = get_node_or_null("/root/Main/Level")
+	if level == null:
+		level = _main_scene()
+	if level == null:
+		return null
+	var owner_script: Script = load("res://office_worker_npc.gd")
+	var stack: Array = [level]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		if node.get_script() == owner_script:
+			return node
+		for c in node.get_children():
+			stack.append(c)
+	return null
+
+
+## ============================================================================
+## Floor trap (Player 1 only, bedroom/office rounds)
+## ============================================================================
+## Clicking the inventory icon drops a translucent red "ghost" of the trap
+## that follows the mouse in world space. Left click commits it where the
+## ghost is standing; right click / Esc cancels.
+
+const FLOOR_TRAP_GHOST_COLOR := Color(1.0, 0.2, 0.2, 0.55)
+const FLOOR_TRAP_DRAW_SCALE := 0.7
+
+
+func _on_floor_trap_icon_clicked() -> void:
+	if current_turn != "Player1" or _floor_trap_used:
+		return
+	_start_floor_trap_placement()
+
+
+func _start_floor_trap_placement() -> void:
+	if _floor_trap_placing:
+		return
+	var level: Node = get_node_or_null("/root/Main/Level")
+	if level == null:
+		level = _main_scene()
+	if level == null:
+		return
+	var ghost := Sprite2D.new()
+	ghost.name = "FloorTrapGhost"
+	ghost.texture = _load_texture_any("res://floor_trap.png")
+	ghost.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	ghost.scale = Vector2(FLOOR_TRAP_DRAW_SCALE, FLOOR_TRAP_DRAW_SCALE)
+	ghost.modulate = FLOOR_TRAP_GHOST_COLOR
+	ghost.z_index = 5
+	level.add_child(ghost)
+	_floor_trap_ghost = ghost
+	_floor_trap_placing = true
+	var p1: Node2D = _get_player1_body() as Node2D
+	if p1:
+		ghost.global_position = p1.get_global_mouse_position()
+	set_status_message("Click to place the floor trap. Right-click to cancel.")
+
+
+func _update_floor_trap_ghost() -> void:
+	if not _floor_trap_placing or _floor_trap_ghost == null or not is_instance_valid(_floor_trap_ghost):
+		return
+	# Bail out cleanly if the turn changed out from under us mid-placement.
+	if current_turn != "Player1" or _floor_trap_used:
+		_cancel_floor_trap_placement()
+		return
+	var p1: Node2D = _get_player1_body() as Node2D
+	if p1:
+		_floor_trap_ghost.global_position = p1.get_global_mouse_position()
+
+
+func _confirm_floor_trap_placement() -> void:
+	if not _floor_trap_placing:
+		return
+	var pos: Vector2 = Vector2.ZERO
+	if _floor_trap_ghost and is_instance_valid(_floor_trap_ghost):
+		pos = _floor_trap_ghost.global_position
+	_end_floor_trap_placement_visual()
+	_place_floor_trap_at(pos)
+
+
+func _cancel_floor_trap_placement() -> void:
+	_end_floor_trap_placement_visual()
+	set_status_message("Floor trap placement cancelled.")
+
+
+func _end_floor_trap_placement_visual() -> void:
+	_floor_trap_placing = false
+	if _floor_trap_ghost and is_instance_valid(_floor_trap_ghost):
+		_floor_trap_ghost.queue_free()
+	_floor_trap_ghost = null
+
+
+func _place_floor_trap_at(pos: Vector2) -> void:
+	if current_turn != "Player1" or _floor_trap_used:
+		return
+	var level: Node = get_node_or_null("/root/Main/Level")
+	if level == null:
+		level = _main_scene()
+	if level == null:
+		return
+	var trap: Area2D = FloorTrap.new()
+	level.add_child(trap)
+	trap.global_position = pos
+	# One-shot item — separate from the shared booby-trap counter, so this does
+	# NOT call consume_trap().
+	_floor_trap_used = true
+	_update_held_items_visibility()
+	set_status_message("You place a floor trap on the ground.")
+
+
+## Called by floor_trap.gd the instant Player 2 steps on an armed trap.
+func trigger_floor_trap(trap: Node, dir: Vector2) -> void:
+	if trap and is_instance_valid(trap):
+		trap.queue_free()
+	_run_floor_trap_sequence(dir)
+
+
+func _run_floor_trap_sequence(dir: Vector2) -> void:
+	var p2 = _get_player2_body()
+	if p2 == null or not p2.has_method("play_directional_cartwheel"):
+		return
+	set_status_message("Floor trap sprung!")
+	await p2.call("play_directional_cartwheel", dir)
+	if not is_instance_valid(p2):
+		return
+	# _run_cartwheel_blast() sets movement_locked = true for the duration of the
+	# fling and relies on the caller to release it once the sequence is done —
+	# unlike the pipe bomb / monkey encounters, there's no follow-up dialog that
+	# does this for us, so P2 would otherwise stay frozen forever.
+	if p2.has_method("set_movement_locked"):
+		p2.call("set_movement_locked", false)
+	var npc: Node = _get_office_worker_npc()
+	if npc and is_instance_valid(npc) and npc is Node2D and (p2 as Node2D).global_position.distance_to((npc as Node2D).global_position) <= FLOOR_TRAP_NPC_HIT_DIST:
+		show_evaluation_popup("You have knocked over the office worker! He does not seem happy.")
+		set_status_message("You have knocked over the office worker! He does not seem happy.")
+		if has_method("apply_anxiety"):
+			apply_anxiety("klutz")
+
+
 func _apply_p2_speed_boost() -> void:
 	var p2: Node = _get_player2_body()
 	if p2 == null:
@@ -1585,6 +1872,7 @@ func _build_hud() -> void:
 	_build_trap_counter_panel()
 	_build_anxiety_panel()
 	_build_held_items_panel()
+	_build_p1_trap_panel()
 	_build_status_dialog_panel()
 	_build_pills_dialog()
 	_build_gun_give_dialog()
@@ -1593,11 +1881,64 @@ func _build_hud() -> void:
 	_build_evaluation_dialog()
 	_build_leave_apartment_dialog()
 	_build_gun_lesson_dialog()
+	_build_monkey_dialog()
 	_ensure_leave_zone()
 	_build_dev_panel()
 	_update_hud()
 	_update_held_items_visibility()
 	set_status_message("")
+
+
+func _build_p1_trap_panel() -> void:
+	_p1_inv_panel = PanelContainer.new()
+	_p1_inv_panel.name = "P1TrapPanel"
+	_p1_inv_panel.add_theme_stylebox_override("panel", _gold_panel_style(8))
+	_p1_inv_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_p1_inv_panel.visible = false
+	_sidebar.add_child(_p1_inv_panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_p1_inv_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Trap"
+	_apply_hud_label(title)
+	title.add_theme_font_size_override("font_size", 10)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(title)
+
+	var slot := Panel.new()
+	slot.name = "FloorTrapSlot"
+	slot.custom_minimum_size = Vector2(40, 40)
+	slot.mouse_filter = Control.MOUSE_FILTER_STOP
+	slot.focus_mode = Control.FOCUS_NONE
+	slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	slot.tooltip_text = "Place a floor trap"
+	var slot_style := StyleBoxFlat.new()
+	slot_style.bg_color = Color(0.12, 0.1, 0.08, 0.9)
+	slot_style.border_color = Color(0.95, 0.78, 0.28, 0.8)
+	slot_style.set_border_width_all(2)
+	slot_style.set_corner_radius_all(4)
+	slot.add_theme_stylebox_override("panel", slot_style)
+
+	var icon := TextureRect.new()
+	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	icon.offset_left = 3
+	icon.offset_top = 3
+	icon.offset_right = -3
+	icon.offset_bottom = -3
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.focus_mode = Control.FOCUS_NONE
+	icon.texture = _load_texture_any("res://icon_floor_trap.png")
+	slot.add_child(icon)
+
+	vbox.add_child(slot)
+	_p1_floor_trap_slot = slot
 
 
 func _build_dev_panel() -> void:
@@ -1908,7 +2249,11 @@ func show_pills_dialog() -> void:
 
 
 func _get_lizard() -> Node:
-	return get_node_or_null("/root/Main/Roomate")
+	# After level swap the lizard is reparented onto Main for persistence.
+	var liz: Node = get_node_or_null("/root/Main/Roomate")
+	if liz:
+		return liz
+	return get_node_or_null("/root/Main/Level/Roomate")
 
 
 func _is_pet_lizard_alive() -> bool:
@@ -2186,6 +2531,248 @@ func show_download_trap_popup(duration: float = 2.5) -> void:
 		_download_dialog.visible = false
 
 
+## ============================================================================
+## Office monkey (filing cabinet trap)
+## ============================================================================
+
+const MSG_MONKEY_PILLS := "Give the pills to the monkey?"
+const MSG_MONKEY_CLEAN_PILLS := "The monkey is in a drugged craze. He rips up your clothes. Not a good look for the interview."
+const MSG_MONKEY_UNOPPOSED := "The monkey has attacked you, ripping up your clothes. This is not a good look for your interview.."
+const MSG_MONKEY_LIZARD_FIGHT := "Your pet lizard engages with the monkey. The struggles make them both expire."
+const MSG_MONKEY_LIZARD_GUN := "Your pet lizard used the blicky to neutralize the monkey. He has returned to your fanny pack, a killer."
+
+
+func register_office_monkey(monkey: Node) -> void:
+	_office_monkey = monkey as Node2D
+
+
+func on_monkey_reached_player(monkey: Node) -> void:
+	if monkey != null:
+		_office_monkey = monkey as Node2D
+	# Prefer pills choice when the player still holds a bottle.
+	if has_inventory_item(ITEM_PILLS):
+		_show_monkey_pills_dialog()
+		return
+	# No pills: living non-possessed lizard walks over to the monkey.
+	if await _try_lizard_walk_to_monkey():
+		return
+	# No lizard / no pills — monkey mauls your clothes (Slovenly).
+	await _resolve_monkey_unopposed_attack()
+
+
+func _build_monkey_dialog() -> void:
+	if _hud_layer == null:
+		return
+	var built := _build_modal_shell("MonkeyDialog", "Monkey!", 280)
+	var root: Control = built["root"]
+	var col: VBoxContainer = built["col"]
+	_monkey_dialog = root
+
+	var prompt := Label.new()
+	_apply_hud_label(prompt)
+	prompt.name = "Prompt"
+	prompt.text = MSG_MONKEY_PILLS
+	prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt.add_theme_font_size_override("font_size", 10)
+	col.add_child(prompt)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.name = "Buttons"
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 10)
+	col.add_child(btn_row)
+
+	var give_btn := _make_dialog_button("Give pills", "GivePillsButton")
+	give_btn.custom_minimum_size = Vector2(110, 28)
+	give_btn.pressed.connect(_on_monkey_give_pills_pressed)
+	btn_row.add_child(give_btn)
+
+	var refuse_btn := _make_dialog_button("Don't", "RefuseButton")
+	refuse_btn.custom_minimum_size = Vector2(90, 28)
+	refuse_btn.pressed.connect(_on_monkey_refuse_pills_pressed)
+	btn_row.add_child(refuse_btn)
+
+
+func _show_monkey_pills_dialog() -> void:
+	if _monkey_dialog == null:
+		_build_monkey_dialog()
+	if _monkey_dialog == null:
+		return
+	var prompt := _monkey_dialog.find_child("Prompt", true, false) as Label
+	if prompt:
+		prompt.text = MSG_MONKEY_PILLS
+	_monkey_dialog.visible = true
+	_monkey_dialog_open = true
+	var give_btn := _monkey_dialog.find_child("GivePillsButton", true, false) as Button
+	if give_btn:
+		give_btn.grab_focus()
+
+
+func hide_monkey_dialog() -> void:
+	if _monkey_dialog:
+		_monkey_dialog.visible = false
+	_monkey_dialog_open = false
+
+
+func _on_monkey_give_pills_pressed() -> void:
+	hide_monkey_dialog()
+	var entry: Dictionary = _find_inv_entry(ITEM_PILLS)
+	if entry.is_empty():
+		if not await _try_lizard_walk_to_monkey():
+			await _resolve_monkey_unopposed_attack()
+		return
+	var trapped: bool = bool(entry.get("trapped", false))
+	remove_inventory_item(ITEM_PILLS)
+	if trapped:
+		await _resolve_monkey_killed_by_trap_pills()
+	else:
+		await _resolve_monkey_clean_pills()
+
+
+func _on_monkey_refuse_pills_pressed() -> void:
+	hide_monkey_dialog()
+	if await _try_lizard_walk_to_monkey():
+		return
+	await _resolve_monkey_unopposed_attack()
+
+
+func _resolve_monkey_killed_by_trap_pills() -> void:
+	if _office_monkey and is_instance_valid(_office_monkey) and _office_monkey.has_method("die_upside_down"):
+		_office_monkey.call("die_upside_down")
+	apply_anxiety("quick_thinker")
+	await show_evaluation_popup("The monkey takes the bad pills and keels over.")
+	set_status_message("Quick thinker. The monkey is out.")
+	_unlock_p2_movement()
+
+
+func _resolve_monkey_clean_pills() -> void:
+	const msg := MSG_MONKEY_CLEAN_PILLS
+	if _office_monkey and is_instance_valid(_office_monkey) and _office_monkey.has_method("enter_frenzy"):
+		_office_monkey.call("enter_frenzy")
+	apply_anxiety("slovenly")
+	await show_evaluation_popup(msg)
+	set_status_message(msg)
+	_unlock_p2_movement()
+
+
+## No pills / no lizard save — monkey rips your clothes, Slovenly +25.
+func _resolve_monkey_unopposed_attack() -> void:
+	if _office_monkey and is_instance_valid(_office_monkey) and _office_monkey.has_method("enter_frenzy"):
+		_office_monkey.call("enter_frenzy")
+	apply_anxiety("slovenly")
+	await show_evaluation_popup(MSG_MONKEY_UNOPPOSED)
+	set_status_message(MSG_MONKEY_UNOPPOSED)
+	_unlock_p2_movement()
+
+
+## Living non-possessed lizard on the ground (or released from pack) walks to the monkey.
+func _try_lizard_walk_to_monkey() -> bool:
+	var lizard: Node = _get_eligible_monkey_lizard()
+	if lizard == null:
+		return false
+	if _office_monkey == null or not is_instance_valid(_office_monkey):
+		return false
+	# Pack: dump next to the player so it can walk over.
+	if lizard.has_method("is_in_fannypack") and bool(lizard.call("is_in_fannypack")):
+		var p2: Node2D = _get_player2_body() as Node2D
+		var at: Vector2 = p2.global_position + Vector2(-22.0, 10.0) if p2 else Vector2.ZERO
+		if lizard.has_method("exit_fannypack"):
+			lizard.call("exit_fannypack", at)
+		_lizard_in_pack = false
+		_update_pack_icon_if_any()
+	# Lizard walks to stand beside the monkey (not stacked).
+	if lizard.has_method("walk_to_beside"):
+		await lizard.call("walk_to_beside", _office_monkey)
+	await _resolve_monkey_lizard_mutual_ko()
+	return true
+
+
+func _get_eligible_monkey_lizard() -> Node:
+	var lizard: Node = _get_lizard()
+	if lizard == null or not is_instance_valid(lizard):
+		return null
+	if lizard.has_method("is_alive") and not bool(lizard.call("is_alive")):
+		return null
+	if lizard.has_method("is_demon_possessed") and bool(lizard.call("is_demon_possessed")):
+		return null
+	return lizard
+
+
+func _resolve_monkey_lizard_mutual_ko() -> void:
+	var lizard: Node = _get_eligible_monkey_lizard()
+	if lizard == null:
+		lizard = _get_lizard()
+	# Park them side-by-side, not stacked.
+	if lizard and is_instance_valid(lizard) and lizard is Node2D \
+			and _office_monkey and is_instance_valid(_office_monkey):
+		var mpos: Vector2 = (_office_monkey as Node2D).global_position
+		var lpos: Vector2 = (lizard as Node2D).global_position
+		var side: float = 28.0 if lpos.x >= mpos.x else -28.0
+		(lizard as Node2D).global_position = mpos + Vector2(side, 0.0)
+
+	var armed: bool = lizard != null and is_instance_valid(lizard) \
+			and lizard.has_method("has_gun") and bool(lizard.call("has_gun"))
+
+	if armed:
+		await _resolve_monkey_lizard_gun_ko(lizard)
+		return
+
+	if lizard and is_instance_valid(lizard):
+		if lizard.has_method("die_upside_down"):
+			lizard.call("die_upside_down", "monkey")
+		elif lizard.has_method("give_pills"):
+			lizard.call("give_pills", true)
+	if _office_monkey and is_instance_valid(_office_monkey) and _office_monkey.has_method("die_upside_down"):
+		_office_monkey.call("die_upside_down")
+	if _lizard_in_pack:
+		_lizard_in_pack = false
+		_update_pack_icon_if_any()
+	await show_evaluation_popup(MSG_MONKEY_LIZARD_FIGHT)
+	set_status_message(MSG_MONKEY_LIZARD_FIGHT)
+	_unlock_p2_movement()
+
+
+## Armed lizard shoots the monkey, stays alive, zips back into the fanny pack.
+func _resolve_monkey_lizard_gun_ko(lizard: Node) -> void:
+	if _office_monkey and is_instance_valid(_office_monkey) and _office_monkey.has_method("die_upside_down"):
+		_office_monkey.call("die_upside_down")
+	# Lizard lives — back into the pack (creates the pack stash state).
+	if lizard and is_instance_valid(lizard):
+		if lizard.has_method("enter_fannypack"):
+			lizard.call("enter_fannypack")
+		_lizard_in_pack = true
+		# Ensure the player actually has a fanny pack to stash into.
+		if not has_inventory_item(ITEM_FANNYPACK):
+			add_inventory_fannypack()
+		_refresh_pack_icon()
+	apply_anxiety("protected_by_nature")
+	await show_evaluation_popup(MSG_MONKEY_LIZARD_GUN)
+	set_status_message(MSG_MONKEY_LIZARD_GUN)
+	_unlock_p2_movement()
+
+
+func _unlock_p2_movement() -> void:
+	var p2: Node = _get_player2_body()
+	if p2 and p2.has_method("set_movement_locked"):
+		p2.set_movement_locked(false)
+
+
+func _update_pack_icon_if_any() -> void:
+	# Refresh fanny-pack inventory art if the pack is still held.
+	for e in _inv:
+		if String(e.get("id", "")) == ITEM_FANNYPACK:
+			var icon: TextureRect = e.get("icon") as TextureRect
+			if icon:
+				icon.texture = _load_texture_any(
+					TEX_FANNYPACK_LIZARD_ICON if _lizard_in_pack else TEX_FANNYPACK_ICON
+				)
+			var slot: Control = e.get("slot") as Control
+			if slot:
+				slot.tooltip_text = get_inventory_tooltip(ITEM_FANNYPACK, e)
+			break
+
+
 func _build_download_dialog() -> void:
 	if _hud_layer == null:
 		return
@@ -2445,7 +3032,13 @@ func _on_leave_no_pressed() -> void:
 ## Round / map transition
 ## ============================================================================
 
-## After Yes on post-encounter stairs: swap map, reset traps, hand control to P1.
+## Level scenes (swapped under Main/Level). Persistent shell: Players + TurnManager + HUD.
+const LEVEL_BEDROOM := "res://levels/bedroom.tscn"
+const LEVEL_OFFICE := "res://levels/office.tscn"
+const LEVEL_DATE := "res://levels/date.tscn"
+
+
+## After Yes on post-encounter stairs: load next level scene, keep memory (anxiety etc.).
 func start_next_map_round() -> void:
 	leave_available = false
 	leave_intent = "end_round"
@@ -2453,48 +3046,64 @@ func start_next_map_round() -> void:
 		_leave_arrow.visible = false
 	if _leave_zone:
 		_leave_zone.monitoring = false
+		# Leave zone is recreated under Main for the new level's stairs.
+		_leave_zone.queue_free()
+		_leave_zone = null
+	if _leave_arrow and is_instance_valid(_leave_arrow):
+		_leave_arrow.queue_free()
+		_leave_arrow = null
 
-	# Anxiety "next round" re-prices (e.g. fent pills).
+	# Anxiety "next round" re-prices (e.g. fent pills). Inventory / lizard / buffs stay.
 	begin_next_round()
 
 	round_index += 1
-	var to_office: bool = round_index >= 2
-	if to_office:
-		_set_background_map(MAP_OFFICE)
-		_apply_map_layout("office")
-	else:
-		_set_background_map(MAP_BEDROOM)
-		_apply_map_layout("bedroom")
 
-	# Clear end-of-round encounter state.
+	# Clear end-of-round encounter NPCs / FX (not persistent memory).
+	# Possessed NPCs (fireman / cop / landlord) keep following P2 into the next map.
 	evaluation_active = false
 	pipe_bomb_detonated = false
 	illegal_download = false
 	_npc_flees = false
 	_npc_name = "NPC"
-	if _fireman != null and is_instance_valid(_fireman):
-		_fireman.queue_free()
-	_fireman = null
-	# Drop any leftover smoke / eject FX from the bedroom round.
+	_dispose_or_keep_arrival_npc()
 	_clear_transient_fx()
+	# Lizard only if stashed in fanny pack or demon-possessed (not free roam / remnant).
+	_promote_persistent_level_actors()
+
+	# Round 3 is the date. No traps, no P1 setup phase — the round IS the
+	# minigame, so it takes its own path and never touches the trap budgets.
+	if round_index >= DATE_ROUND:
+		await _begin_date_round()
+		return
+
+	# Swap the Level scene (bedroom → office). Shell players/TurnManager stay.
+	var to_office: bool = round_index >= 2
+	var level_path: String = LEVEL_OFFICE if to_office else LEVEL_BEDROOM
+	await load_level(level_path)
 
 	# Trap / use budgets for a fresh setup phase.
+	# Memory that persists: anxiety, status icons, held inventory, lizard, murder flags.
+	# The floor trap IS reset here on purpose — one trap per level (bedroom and
+	# office each get their own), not one for the whole run.
 	traps_left = TRAPS_MAX
 	p2_items_used = 0
 	p2_inspects_left = P2_INSPECTS_MAX
-	if to_office:
-		# Bedroom props are gone — do not re-arm them.
-		_clear_held_inventory()
-	else:
-		_reset_props_for_new_round()
-		UsableShimmer.reset_all_for_new_round()
+	_floor_trap_used = false
+	# Props only exist on the loaded level — reset traps if any (bedroom).
+	_reset_props_for_new_round()
+	UsableShimmer.reset_all_for_new_round()
 
-	# P1 places traps again (office currently has no interactables until wired).
+	# P1 places traps again.
 	current_turn = "Player1"
+	# Re-bind players after level load (paths unchanged under Main).
+	player1 = get_node_or_null("/root/Main/Player1/Player1Body")
+	player2 = get_node_or_null("/root/Main/Player2/Player2Body")
 	if is_instance_valid(player1):
 		player1.set_active(true)
 	if is_instance_valid(player2):
 		player2.set_active(false)
+	# Possessed followers re-lock onto P2 after the level swap.
+	_rebind_persistent_followers()
 	UsableShimmer.on_turn_changed("Player1")
 	_update_hud()
 	_update_held_items_visibility()
@@ -2502,41 +3111,287 @@ func start_next_map_round() -> void:
 		set_status_message("New office. Walk around — traps for this floor come next.")
 	else:
 		set_status_message("New location. Set your booby traps.")
-	print("[ROUND] Started round ", round_index, " map=", MAP_OFFICE if to_office else MAP_BEDROOM)
+	print("[ROUND] Started round ", round_index, " level=", level_path)
 
 
-func _set_background_map(path: String) -> void:
-	var bg := get_node_or_null("/root/Main/Background") as Sprite2D
-	if bg == null:
-		var scene = get_tree().current_scene
-		if scene:
-			bg = scene.get_node_or_null("Background") as Sprite2D
-	if bg == null:
-		push_error("[MAP] Background node not found")
+## ============================================================================
+## Level 3 — the date
+## ============================================================================
+
+## Loads the venue and hands the round straight to the minigame. There is no
+## trap phase and no Player 1 turn here: everything you are about to be judged
+## for was already decided in the apartment and the office.
+func _begin_date_round(skip_lob: bool = false) -> void:
+	await load_level(LEVEL_DATE)
+
+	# No setup phase on this map. Zeroing the budgets keeps the HUD honest and
+	# stops any stray prop script from offering a trap prompt.
+	traps_left = 0
+	p2_items_used = P2_USES_MAX
+	p2_inspects_left = 0
+	UsableShimmer.reset_all_for_new_round()
+
+	current_turn = "Player2"
+	player1 = get_node_or_null("/root/Main/Player1/Player1Body")
+	player2 = get_node_or_null("/root/Main/Player2/Player2Body")
+	if is_instance_valid(player1):
+		player1.set_active(false)
+	if is_instance_valid(player2):
+		player2.set_active(true)
+	_rebind_persistent_followers()
+	UsableShimmer.on_turn_changed("Player2")
+	_update_hud()
+	_update_held_items_visibility()
+	set_status_message("The date. Everything you picked up is about to be visible.")
+	print("[ROUND] Started round ", round_index, " level=", LEVEL_DATE)
+
+	await get_tree().create_timer(0.6, true, false, true).timeout
+	if not skip_lob:
+		await run_date_lob_round()
+		await get_tree().create_timer(0.5, true, false, true).timeout
+	await run_date_bout_round()
+
+
+## Office round is over the instant the third item is used. No stairs walk, no
+## evaluation popups, no arrival NPC — the date opens on whatever you are
+## carrying at that moment.
+func _jump_straight_to_date() -> void:
+	if round_index >= DATE_ROUND:
 		return
-	var tex: Texture2D = _load_texture_any(path)
-	if tex == null:
-		push_error("[MAP] Failed to load ", path)
+	# Lock everything down so a prop cannot fire during the hand-off beat.
+	evaluation_active = true
+	leave_available = false
+	hide_leave_apartment_dialog()
+	if _leave_arrow != null and is_instance_valid(_leave_arrow):
+		_leave_arrow.visible = false
+	if _leave_zone != null and is_instance_valid(_leave_zone):
+		_leave_zone.monitoring = false
+
+	var p2: Node = _get_player2_body()
+	if p2 != null and p2.has_method("set_movement_locked"):
+		p2.set_movement_locked(true)
+
+	set_status_message("That is everything. She is already waiting.")
+	await get_tree().create_timer(1.2).timeout
+
+	if p2 != null and is_instance_valid(p2) and p2.has_method("set_movement_locked"):
+		p2.set_movement_locked(false)
+
+	# start_next_map_round() clears evaluation_active and bumps round_index to
+	# DATE_ROUND, which is what routes into _begin_date_round().
+	leave_intent = "next_map"
+	await start_next_map_round()
+
+
+## Minigame round 1 — HIDE IT. Every negative trait becomes one shot; landing it
+## in a stash spot obscures that trait from the date. The result is recorded on
+## the AnxietySystem, which is what round 2 will read.
+func run_date_lob_round() -> Dictionary:
+	var game: Control = _ensure_trait_lob()
+	if game == null:
+		push_error("[DATE] trait lob minigame unavailable (no HUD layer yet)")
+		return {}
+
+	# Live state only. Nothing is fabricated here — these are the modifiers the
+	# apartment and the office actually stuck you with, at your actual anxiety.
+	# (The F-key... rather, the 0 / 9 cheats seed traits *before* this runs; they
+	# do not bypass it.)
+	_ensure_anxiety_system()
+	var anx: int = get_anxiety()
+	var traits: Array = []
+	if anxiety != null and anxiety.has_method("negative_traits"):
+		traits = anxiety.negative_traits()
+
+	var names: Array = []
+	for t in traits:
+		names.append("%s(%+d)" % [String(t.get("label", "?")), int(t.get("amount", 0))])
+	print("[DATE] anxiety=", anx, " ammo=", names)
+
+	var result: Dictionary = await game.show_and_play(traits, anx)
+
+	var obscured: Array = result.get("obscured", [])
+	var exposed: Array = result.get("exposed", [])
+	if anxiety != null and anxiety.has_method("set_obscured"):
+		anxiety.set_obscured(obscured)
+
+	if String(result.get("outcome", "")) == "empty":
+		set_status_message("You arrive with nothing to hide. That has never happened before.")
+	else:
+		set_status_message("Hidden: %d.   Still in the open: %d." % [obscured.size(), exposed.size()])
+
+	print("[DATE] lob round 1 -> obscured=", obscured, " exposed=", exposed)
+	return result
+
+
+## Minigame round 2 — THE BOUT. Everything the lob failed to hide becomes an
+## attack she throws at you. Player 1 gets a setup turn first: 3 pressure points
+## across her repertoire, same budget as the trap phases.
+func run_date_bout_round() -> Dictionary:
+	var game: Control = _ensure_date_bout()
+	if game == null:
+		push_error("[DATE] bout minigame unavailable (no HUD layer yet)")
+		return {}
+
+	_ensure_anxiety_system()
+	var exposed: Array = []
+	if anxiety != null and anxiety.has_method("exposed_traits"):
+		exposed = anxiety.exposed_traits()
+
+	var names: Array = []
+	for t in exposed:
+		names.append(String(t.get("label", "?")))
+	print("[DATE] bout: she can use ", names, " anxiety=", get_anxiety())
+
+	var pressure: Dictionary = {}
+	if not exposed.is_empty():
+		set_status_message("Player 1: brief her. Three points.")
+		pressure = await game.run_pressure_phase(exposed)
+		print("[DATE] P1 pressure = ", pressure)
+
+	var result: Dictionary = await game.show_and_play(exposed, get_anxiety(), pressure)
+
+	var outcome: String = String(result.get("outcome", ""))
+	var mod: String = String(DATE_ENDING_MODIFIERS.get(outcome, ""))
+	if not mod.is_empty():
+		apply_anxiety(mod)
+	set_status_message("The date is over. Interest %d." % int(result.get("interest", 0)))
+	print("[DATE] bout -> ", outcome, " interest=", result.get("interest", 0),
+		" composure=", result.get("composure", 0))
+	return result
+
+
+func _ensure_date_bout() -> Control:
+	if _date_bout != null and is_instance_valid(_date_bout):
+		return _date_bout
+	if _hud_layer == null:
+		return null
+	var game: Control = DateBoutMinigame.new()
+	game.name = "DateBoutMinigame"
+	_hud_layer.add_child(game)
+	_date_bout = game
+	return game
+
+
+func _ensure_trait_lob() -> Control:
+	if _trait_lob != null and is_instance_valid(_trait_lob):
+		return _trait_lob
+	if _hud_layer == null:
+		return null
+	var game: Control = TraitLobMinigame.new()
+	game.name = "TraitLobMinigame"
+	_hud_layer.add_child(game)
+	_trait_lob = game
+	return game
+
+
+## Free current Main/Level and instance a new packed level scene as Main/Level.
+func load_level(path: String) -> void:
+	var main: Node = _main_scene()
+	if main == null:
+		push_error("[LEVEL] Main scene missing")
 		return
-	bg.texture = tex
-	# Room art is always 1390×1640 displayed at 0.4 in Stick Figure 4.
-	bg.scale = Vector2(0.4, 0.4)
-	print("[MAP] Background set to ", path)
+	var old: Node = main.get_node_or_null("Level")
+	if old:
+		old.name = "Level_OLD"
+		main.remove_child(old)
+		old.free()
+	if not ResourceLoader.exists(path):
+		push_error("[LEVEL] Missing level scene: ", path)
+		return
+	var packed: PackedScene = load(path) as PackedScene
+	if packed == null:
+		push_error("[LEVEL] Failed to load: ", path)
+		return
+	var lvl: Node = packed.instantiate()
+	lvl.name = "Level"
+	main.add_child(lvl)
+	# Keep level behind players (players/TurnManager are later siblings).
+	main.move_child(lvl, 0)
+	await get_tree().process_frame
+	print("[LEVEL] Loaded ", path)
 
 
-## Bedroom props/colliders live in Stick Figure 4.tscn. Office uses only the
-## painted background + outer walls/stairs until dedicated office props exist.
-const BEDROOM_PROP_NODES := [
-	"Plant", "Lamp", "LaptopCutOut", "PillBottle", "DresserProp",
-	"Roomate", "HatRack", "Bookshelf", "MeditationPillow",
-	"LizardOnlyBlocker", "LizardOnlyBlocker2", "LizardOnlyBlocker3",
-	"LizardOnlyBlocker4", "LizardOnlyBlocker5", "LizardOnlyBlocker6",
-	"LizardOnlyBlocker7",
-]
-## Furniture blockers that match bedroom layout (not outer walls / stairs).
-const BEDROOM_BOUNDARY_SHAPES := [
-	"Dresser", "Bed", "Table", "Chest",
-]
+## Move actors that must survive a level swap onto Main (before Level is freed).
+## Lizard only comes if:
+##   - zipped into the fanny pack, OR
+##   - demon-possessed (and still alive).
+## Free-roaming lizards and bomb remnants stay on the old Level and die with it.
+func _promote_persistent_level_actors() -> void:
+	var main: Node = _main_scene()
+	if main == null:
+		return
+	# Drop any leftover Main-side lizard that should not travel (old remnant bug).
+	var main_liz: Node = main.get_node_or_null("Roomate")
+	if main_liz != null and not _should_carry_lizard(main_liz):
+		print("[LEVEL] Discarding Main Roomate that should not carry")
+		main_liz.queue_free()
+		if _lizard_in_pack:
+			_lizard_in_pack = false
+	var level: Node = main.get_node_or_null("Level")
+	if level == null:
+		return
+	var roomate: Node = level.get_node_or_null("Roomate")
+	if roomate == null:
+		return
+	if not _should_carry_lizard(roomate):
+		# Dead remnant / free roam / leftover explosion art: leave on Level so it
+		# is freed with the bedroom and never appears in the office.
+		print("[LEVEL] Leaving Roomate on old Level (not pack/possessed)")
+		return
+	var gp: Vector2 = (roomate as Node2D).global_position if roomate is Node2D else Vector2.ZERO
+	level.remove_child(roomate)
+	main.add_child(roomate)
+	if roomate is Node2D:
+		(roomate as Node2D).global_position = gp
+		(roomate as Node2D).z_index = 4
+	print("[LEVEL] Promoted Roomate (lizard) to Main for persistence")
+
+
+## Fanny pack OR living possessed lizard — nothing else.
+func _should_carry_lizard(roomate: Node) -> bool:
+	if roomate == null or not is_instance_valid(roomate):
+		return false
+	# Gibbed / pill corpse / remnant: never carry (this is the explosion art bug).
+	if roomate.has_method("is_alive") and not bool(roomate.call("is_alive")):
+		return false
+	if roomate.has_method("is_in_fannypack") and bool(roomate.call("is_in_fannypack")):
+		return true
+	if roomate.has_method("is_demon_possessed") and bool(roomate.call("is_demon_possessed")):
+		return true
+	return false
+
+
+## Keep a possessed arrival NPC across maps; free everyone else (corpses, crawlers, idle).
+func _dispose_or_keep_arrival_npc() -> void:
+	if _fireman == null or not is_instance_valid(_fireman):
+		_fireman = null
+		return
+	var keep: bool = _fireman.has_method("is_possessed") and bool(_fireman.call("is_possessed"))
+	if keep:
+		# Already under Main from spawn — leave the node, keep the ref for follow.
+		print("[LEVEL] Keeping possessed arrival NPC into next map: ", _fireman.name)
+		return
+	_fireman.queue_free()
+	_fireman = null
+
+
+## After level load, make sure any carried possessed actors still chase P2.
+func _rebind_persistent_followers() -> void:
+	var p2: Node2D = _get_player2_body() as Node2D
+	if p2 == null:
+		return
+	if _fireman != null and is_instance_valid(_fireman):
+		if _fireman.has_method("is_possessed") and bool(_fireman.call("is_possessed")):
+			if _fireman.has_method("become_possessed"):
+				_fireman.call("become_possessed", p2)
+	var lizard: Node = _get_lizard()
+	if lizard != null and is_instance_valid(lizard):
+		if lizard.has_method("is_demon_possessed") and bool(lizard.call("is_demon_possessed")):
+			if lizard.has_method("is_alive") and bool(lizard.call("is_alive")):
+				if lizard.has_method("is_in_fannypack") and bool(lizard.call("is_in_fannypack")):
+					pass # still in pack — follow resumes on release
+				elif lizard.has_method("become_possessed"):
+					lizard.call("become_possessed", p2)
 
 
 func _main_scene() -> Node:
@@ -2544,61 +3399,6 @@ func _main_scene() -> Node:
 	if scene:
 		return scene
 	return get_parent()
-
-
-func _apply_map_layout(layout: String) -> void:
-	var main: Node = _main_scene()
-	if main == null:
-		return
-	var show_bedroom: bool = layout == "bedroom"
-	for name in BEDROOM_PROP_NODES:
-		var n: Node = main.get_node_or_null(String(name))
-		if n == null:
-			continue
-		_set_node_active_for_map(n, show_bedroom)
-	var bounds: Node = main.get_node_or_null("RoomBoundaries")
-	if bounds:
-		for name in BEDROOM_BOUNDARY_SHAPES:
-			var col: Node = bounds.get_node_or_null(String(name))
-			if col is CollisionShape2D:
-				(col as CollisionShape2D).disabled = not show_bedroom
-			elif col is CollisionPolygon2D:
-				(col as CollisionPolygon2D).disabled = not show_bedroom
-			elif col is Node2D:
-				(col as Node2D).visible = show_bedroom
-	print("[MAP] layout=", layout, " bedroom_props_visible=", show_bedroom)
-
-
-func _set_node_active_for_map(n: Node, active: bool) -> void:
-	if n is CanvasItem:
-		(n as CanvasItem).visible = active
-	# Disable areas / bodies so hidden props cannot be used or block movement.
-	if n is Area2D:
-		(n as Area2D).monitoring = active
-		(n as Area2D).monitorable = active
-	if n is CollisionObject2D:
-		# Keep layer/mask; disable shapes under it.
-		pass
-	for c in n.get_children():
-		if c is CollisionShape2D:
-			(c as CollisionShape2D).disabled = not active
-		elif c is CollisionPolygon2D:
-			(c as CollisionPolygon2D).disabled = not active
-		elif c is Area2D:
-			(c as Area2D).monitoring = active
-			(c as Area2D).monitorable = active
-			for cc in c.get_children():
-				if cc is CollisionShape2D:
-					(cc as CollisionShape2D).disabled = not active
-		elif c is StaticBody2D or c is CharacterBody2D:
-			for cc in c.get_children():
-				if cc is CollisionShape2D:
-					(cc as CollisionShape2D).disabled = not active
-				elif cc is CollisionPolygon2D:
-					(cc as CollisionPolygon2D).disabled = not active
-		elif c is CanvasItem and c is not Label:
-			# Nested sprites (open dresser etc.) follow parent visibility.
-			pass
 
 
 func _clear_held_inventory() -> void:
@@ -2616,19 +3416,31 @@ func _clear_transient_fx() -> void:
 	if main == null:
 		return
 	for child in main.get_children():
-		# Runtime-only FX / ejects from round 1 (not permanent scene props).
 		var nm: String = String(child.name)
+		# Runtime FX under Main or Level. Include explosion strip leftovers.
 		if nm.begins_with("PlantSmoke") or nm.begins_with("GunEject") \
 				or nm.begins_with("PipeBomb") or nm.begins_with("MeditationDemon") \
-				or nm == "PlantSmokeGIF":
+				or nm.begins_with("FannyPackEject") \
+				or nm == "PlantSmokeGIF" or nm == "Level_OLD" \
+				or nm == "PipeBombExplosion" or nm == "PipeBombEject" \
+				or nm == "OfficeMonkey":
 			child.queue_free()
+	_office_monkey = null
+	var level: Node = main.get_node_or_null("Level")
+	if level:
+		for child in level.get_children():
+			var nm2: String = String(child.name)
+			if nm2.begins_with("PlantSmoke") or nm2.begins_with("GunEject") \
+					or nm2.begins_with("PipeBomb") or nm2.begins_with("FannyPackEject") \
+					or nm2 == "PlantSmokeGIF" or nm2 == "PipeBombExplosion" \
+					or nm2 == "PipeBombEject" or nm2 == "OfficeMonkey":
+				child.queue_free()
 
 
 func _reset_props_for_new_round() -> void:
 	for p in _all_trappable_props():
 		if p.get("is_booby_trapped") != null:
 			p.set("is_booby_trapped", false)
-		# Optional per-prop hook (dresser texture, pill bottle restore, etc.).
 		if p.has_method("reset_for_new_round"):
 			p.call("reset_for_new_round")
 		elif p.has_method("reset_round"):
@@ -2743,21 +3555,53 @@ func _build_evaluation_dialog() -> void:
 	_eval_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
 	col.add_child(_eval_label)
 
+	_eval_skip_hint = Label.new()
+	_eval_skip_hint.name = "SkipHint"
+	_eval_skip_hint.text = "(press SPACE to skip)"
+	_eval_skip_hint.visible = false
+	_eval_skip_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if _pixel_font != null:
+		_eval_skip_hint.add_theme_font_override("font", _pixel_font)
+	_eval_skip_hint.add_theme_font_size_override("font_size", 8)
+	_eval_skip_hint.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8, 0.75))
+	col.add_child(_eval_skip_hint)
+
 
 ## Show evaluation popup; type full_text onto the Label, then hold.
+## SPACE bar skips straight through: while typing it finishes the text
+## instantly, and while holding it dismisses the popup right away.
 func show_evaluation_popup(full_text: String) -> void:
 	if _eval_dialog == null or _eval_label == null:
 		return
 	_eval_label.text = ""
 	_eval_dialog.visible = true
+	_eval_skip_requested = false
+	if _eval_skip_hint:
+		_eval_skip_hint.visible = true
 	var delay: float = 1.0 / maxf(EVAL_TYPE_CPS, 1.0)
 	for i in range(full_text.length()):
+		if _eval_skip_requested:
+			break
 		_eval_label.text = full_text.substr(0, i + 1)
 		await get_tree().create_timer(delay).timeout
-	await get_tree().create_timer(EVAL_HOLD_AFTER_TEXT_SEC).timeout
+	_eval_label.text = full_text
+	await _eval_wait(EVAL_HOLD_AFTER_TEXT_SEC)
+	_eval_skip_requested = false
+	if _eval_skip_hint:
+		_eval_skip_hint.visible = false
 	if is_instance_valid(_eval_dialog):
 		_eval_dialog.visible = false
 		_eval_label.text = ""
+
+
+## Waits up to `seconds`, breaking out early the moment SPACE requests a
+## skip (see _eval_skip_requested / show_evaluation_popup).
+func _eval_wait(seconds: float) -> void:
+	var remaining: float = seconds
+	while remaining > 0.0 and not _eval_skip_requested:
+		var step: float = minf(remaining, 0.05)
+		await get_tree().create_timer(step).timeout
+		remaining -= step
 
 
 func _on_pills_take_pressed() -> void:
@@ -2888,6 +3732,9 @@ func _update_held_items_visibility() -> void:
 		return
 	var p2_phase: bool = (current_turn == "Player2" or current_turn == "Evaluation")
 	_inv_panel.visible = p2_phase and _inv.size() > 0
+	if _p1_inv_panel != null:
+		_p1_inv_panel.visible = (current_turn == "Player1" and round_index < DATE_ROUND \
+			and not _floor_trap_used and not evaluation_active)
 
 
 func _refresh_visuals() -> void:

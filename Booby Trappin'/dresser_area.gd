@@ -4,7 +4,7 @@ const UsableShimmer = preload("res://usable_shimmer.gd")
 const ItemPrompts = preload("res://item_prompts.gd")
 
 @onready var dresser: Sprite2D = get_parent() as Sprite2D
-@onready var label = $/root/Main/DresserProp/Label
+@onready var label = $/root/Main/Level/DresserProp/Label
 @onready var player1_body = $/root/Main/Player1/Player1Body
 @onready var player2_body = $/root/Main/Player2/Player2Body
 @onready var turn_manager = $/root/Main/TurnManager
@@ -164,6 +164,8 @@ func _eject_fannypack() -> void:
 ## Lizard remnant + green chunks flung away from boom_pos.
 func _gib_roomate(boom_pos: Vector2) -> void:
 	var roomate := get_node_or_null("/root/Main/Roomate") as Sprite2D
+	if roomate == null:
+		roomate = get_node_or_null("/root/Main/Level/Roomate") as Sprite2D
 	if roomate == null:
 		return
 	if roomate.has_method("gib_from_blast"):

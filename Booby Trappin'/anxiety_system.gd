@@ -94,6 +94,42 @@ const DEF := {
 		"tex": "res://icon_ptsd.png",
 		"tip": "The dresser had a pipe bomb in it. You keep hearing it.\nAnxiety +10",
 	},
+	"sleuth": {
+		"label": "Sleuth",
+		"amount": -25,
+		"tex": "res://icon_sleuth.png",
+		"tip": "You found blackmail on the boss in the filing cabinet.\nThis may give you an edge in the interview.\nConfidence +25 (Anxiety -25)",
+	},
+	"quick_thinker": {
+		"label": "Quick Thinker",
+		"amount": -25,
+		"tex": "res://icon_quick_thinker.png",
+		"tip": "You fed the attacking monkey the bad pills.\nProblem solved. Upside-down, even.\nAnxiety -25",
+	},
+	"slovenly": {
+		"label": "Slovenly",
+		"amount": 25,
+		"tex": "res://icon_slovenly.png",
+		"tip": "A drugged monkey ripped up your clothes.\nNot a good look for the interview.\nAnxiety +25",
+	},
+	"protected_by_nature": {
+		"label": "Protected by Nature",
+		"amount": -10,
+		"tex": "res://icon_protected_by_nature.png",
+		"tip": "Your gun-lizard handled the monkey.\nHe is back in the pack. A killer.\nAnxiety -10",
+	},
+	"soft_skills": {
+		"label": "Soft Skills",
+		"amount": -25,
+		"tex": "res://icon_soft_skills.png",
+		"tip": "An office worker slipped you interview questions.\nHe is chill like that.\nAnxiety -25",
+	},
+	"incel_presenting": {
+		"label": "Incel Presenting",
+		"amount": 25,
+		"tex": "res://icon_incel_presenting.png",
+		"tip": "An ornery coworker baited you into a race conversation.\nYou fumbled it heavily.\nAnxiety +25",
+	},
 	"mourning": {
 		"label": "Mourning",
 		"amount": 5,
@@ -157,6 +193,32 @@ const DEF := {
 		"tex": "",
 		"tip": "Set by the dev panel. Not reachable in normal play.",
 	},
+	# --- the date, round 2: how the evening actually ended ---
+	"second_date": {
+		"label": "Second Date",
+		"amount": -25,
+		"tex": "res://icon_second_date.png",
+		"tip": "She is already picking the place.\nSomebody, somewhere, likes you.\nAnxiety -25",
+	},
+	"left_on_read": {
+		"label": "Left On Read",
+		"amount": 5,
+		"tex": "res://icon_left_on_read.png",
+		"tip": "Not a no. Not a yes. Just the two grey ticks\nand the rest of your life.\nAnxiety +5",
+	},
+	"ghosted": {
+		"label": "Ghosted",
+		"amount": 15,
+		"tex": "res://icon_ghosted.png",
+		"tip": "Politely, and completely.\nAnxiety +15",
+	},
+	"meltdown": {
+		"label": "Public Meltdown",
+		"amount": 30,
+		"locked": true,
+		"tex": "res://icon_meltdown.png",
+		"tip": "You came apart at the table, in front of everyone.\nAnxiety +30, permanently.",
+	},
 	# --- permanent ---
 	"murderer": {
 		"label": "Murderer",
@@ -180,6 +242,10 @@ var _mods: Dictionary = {}
 var _floor_locked: bool = false
 var round_number: int = 1
 var _last_value: int = ANX_START
+## Trait ids the date-level lob minigame managed to hide. Purely social: an
+## obscured trait still costs exactly as much anxiety, the date just never
+## learns about it. id -> true.
+var _obscured: Dictionary = {}
 
 
 ## Current anxiety, clamped, with the murder floor applied.
@@ -303,6 +369,59 @@ func listing() -> Array:
 	return out
 
 
+## ============================================================================
+## Traits (the date level reads these)
+## ============================================================================
+
+## Everything currently costing you anxiety, worst-first. This is the ammunition
+## for the level 3 lob minigame — one shot per entry, no refills. Locked
+## modifiers (Murderer / Attempted Murder) are included on purpose: they are the
+## heaviest thing you are carrying and the most worth hiding.
+func negative_traits() -> Array:
+	var out: Array = []
+	for e in listing():
+		if int(e.get("amount", 0)) > 0:
+			out.append(e)
+	return out
+
+
+## The good half of the same list, for symmetry (round 2 will want it).
+func positive_traits() -> Array:
+	var out: Array = []
+	for e in listing():
+		if int(e.get("amount", 0)) < 0:
+			out.append(e)
+	out.reverse() # listing() is worst-first; best-first reads better here
+	return out
+
+
+## Record the lob minigame's result. Does NOT touch anxiety — hiding a trait is
+## a social outcome, not a therapeutic one.
+func set_obscured(ids: Array) -> void:
+	_obscured.clear()
+	for id in ids:
+		_obscured[String(id)] = true
+
+
+func is_obscured(id: String) -> bool:
+	return _obscured.has(id)
+
+
+func obscured_ids() -> Array:
+	return _obscured.keys()
+
+
+## Negative traits the date can still find out about — the pool the reveal
+## draws from. Anything the player never got a shot at counts as exposed,
+## because set_obscured() only ever records hits.
+func exposed_traits() -> Array:
+	var out: Array = []
+	for e in negative_traits():
+		if not _obscured.has(String(e.get("id", ""))):
+			out.append(e)
+	return out
+
+
 ## Round transition. Modifiers carrying `next_round` re-price themselves — this
 ## is how the booby-trapped pills stop helping and start hurting. Round 2 does
 ## not exist yet; call this from wherever it eventually starts.
@@ -351,6 +470,7 @@ func reset_for_new_run() -> void:
 		if not bool(_mods[id].get("locked", false)):
 			_mods.erase(id)
 	round_number = 1
+	_obscured.clear()
 	_emit(prev)
 
 
